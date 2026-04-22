@@ -9,7 +9,7 @@ version = "1.0.0-SNAPSHOT"
 group = "dev.slne.surf.survival.events.werewolf"
 
 dependencies {
-    compileOnly("de.maxhenkel.voicechat:voicechat-api:2.5.0")
+    implementation("de.maxhenkel.voicechat:voicechat-api:2.5.0")
 }
 repositories {
     maven { url = uri("https://maven.maxhenkel.de/repository/public") }
@@ -24,6 +24,6 @@ surfPaperPluginApi {
     }
 
     serverDependencies {
-        registerRequired("VoiceChat")
+        registerRequired("voicechat")
     }
 }

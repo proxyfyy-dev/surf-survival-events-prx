@@ -1,0 +1,82 @@
+package dev.slne.surf.event.werewolf.commands.subcommands
+
+import dev.jorel.commandapi.arguments.EntitySelectorArgument
+import dev.jorel.commandapi.kotlindsl.playerExecutor
+import dev.jorel.commandapi.kotlindsl.subcommand
+import dev.slne.surf.api.core.messages.Colors
+import dev.slne.surf.api.core.messages.adventure.buildText
+import dev.slne.surf.api.core.messages.adventure.sendText
+import dev.slne.surf.api.core.messages.adventure.uuid
+import dev.slne.surf.event.werewolf.service.WerewolfGameManager
+import dev.slne.surf.event.werewolf.util.GameState
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
+import net.kyori.adventure.text.format.TextDecoration
+import org.bukkit.entity.Player
+
+fun voteWerewolfCommand() = subcommand("vote") {
+    withArguments(EntitySelectorArgument.OnePlayer("player"))
+    playerExecutor { commandSender, arguments ->
+        val targetPlayer = arguments.get("player") as Player
+        val service = WerewolfGameManager.getGameForPlayer(commandSender.uuid())
+
+        if (service == null) {
+            commandSender.sendText {
+                appendErrorPrefix()
+                error("Du bist aktuell in keinem Werwolf-Spiel.")
+            }
+            return@playerExecutor
+        }
+
+        val currentPhase = service.engine.currentPhase
+        if (currentPhase != GameState.MAYOR_VOTE && currentPhase != GameState.VOTE) {
+            commandSender.sendText {
+                appendErrorPrefix()
+                error("Du kannst diesen Befehl nur wahrend einer Voting-Phase benutzen!")
+            }
+            return@playerExecutor
+        }
+
+        when (currentPhase) {
+            GameState.MAYOR_VOTE -> {
+
+                if (!service.engine.submitMayorVote(commandSender.uuid(), targetPlayer.uuid())) {
+                    commandSender.sendText {
+                        appendErrorPrefix()
+                        error("Die Burgermeisterwahl ist aktuell nicht verfugbar oder das Ziel ist ungueltig.")
+                    }
+                    return@playerExecutor
+                }
+
+                commandSender.sendText {
+                    appendSuccessPrefix()
+                    success("Du hast erfolgreich fur")
+                    appendSpace()
+                    variableValue(targetPlayer.name)
+                    appendSpace()
+                    success("abgestimmt!")
+                }
+            }
+
+            GameState.VOTE -> {
+
+                if (!service.engine.submitVote(commandSender.uuid(), targetPlayer.uuid())) {
+                    commandSender.sendText {
+                        appendErrorPrefix()
+                        error("Die Abstimmung ist aktuell nicht verfugbar oder das Ziel ist ungueltig.")
+                    }
+                    return@playerExecutor
+                }
+
+                commandSender.sendText {
+                    appendSuccessPrefix()
+                    success("Du hast erfolgreich fur")
+                    appendSpace()
+                    variableValue(targetPlayer.name)
+                    appendSpace()
+                    success("abgestimmt!")
+                }
+            }
+        }
+    }
+}

@@ -79,7 +79,10 @@ class WerewolfService(val gameId: String) {
 
     private val audioHandler = WerewolfVoicechatPlugin.getAudioHandler(gameId)
 
-    private var engine: WerewolfGameEngine? = null
+    val engine: WerewolfGameEngine
+        get() =_engine
+
+    private var _engine = WerewolfGameEngine(this)
 
     fun openLobby(leaderUuid: UUID) {
         if (phase != GamePhase.IDLE) return
@@ -125,8 +128,7 @@ class WerewolfService(val gameId: String) {
             _state = GameState.DAY
             val roleMap = WerewolfRoleSelection.assignRoles(players.keys.toList())
 
-            this.engine = WerewolfGameEngine(this)
-            this.engine!!.startGameEngine()
+            this._engine.startGameEngine()
 
             roleMap.forEach { (uuid, role) ->
                 val werewolfPlayer = players[uuid] ?: return@forEach
@@ -216,7 +218,7 @@ class WerewolfService(val gameId: String) {
                     _werewolfTime += 1.seconds
 
                     //Chek if Phase is over
-                    val advanceResult = engine?.tick()
+                    val advanceResult = engine.tick()
 
                     if (advanceResult != null) {
                         if (advanceResult.winner != null) {
