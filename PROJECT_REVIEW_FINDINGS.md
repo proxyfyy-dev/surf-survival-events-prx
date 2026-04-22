@@ -1,6 +1,6 @@
 # Projekt-Review Findings
 
-Stand: 2026-04-21
+Stand: 2026-04-22
 
 Gepruefter Stand:
 - Kompiliert mit `./gradlew.bat :surf-event-werewolf:compileKotlin`
