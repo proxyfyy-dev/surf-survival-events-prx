@@ -8,11 +8,13 @@ import dev.slne.surf.api.core.messages.adventure.sendText
 import dev.slne.surf.api.core.messages.adventure.showTitle
 import dev.slne.surf.api.core.messages.builder.SurfComponentBuilder
 import dev.slne.surf.event.werewolf.dialog.WerewolfRoleViewDialoge
+import dev.slne.surf.event.werewolf.domain.WerewolfGameEngine
 import dev.slne.surf.event.werewolf.messaging.WerewolfMessenger
 import dev.slne.surf.event.werewolf.plugin
 import dev.slne.surf.event.werewolf.scoreboard.addToWerewolfScoreboard
 import dev.slne.surf.event.werewolf.scoreboard.removeFromWerewolfScoreboard
 import dev.slne.surf.event.werewolf.util.*
+import dev.slne.surf.event.werewolf.util.toBukkitPlayer
 import dev.slne.surf.event.werewolf.voicechat.WerewolfVoicechatPlugin
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,7 +24,6 @@ import org.bukkit.Sound
 import org.bukkit.entity.Player
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
-import toBukkitPlayer
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -78,6 +79,8 @@ class WerewolfService(val gameId: String) {
 
     private val audioHandler = WerewolfVoicechatPlugin.getAudioHandler(gameId)
 
+    private var engine: WerewolfGameEngine? = null
+
     fun openLobby(leaderUuid: UUID) {
         if (phase != GamePhase.IDLE) return
 
@@ -110,7 +113,8 @@ class WerewolfService(val gameId: String) {
             return WerewolfStartResult.NotInLobbyPhase
         }
 
-        val minPlayers = 8
+        // Testing
+        val minPlayers = 1
         if (players.size < minPlayers) {
             val result = WerewolfStartResult.NotEnoughPlayers(players.size, minPlayers)
             return result
@@ -120,6 +124,9 @@ class WerewolfService(val gameId: String) {
             _phase = GamePhase.RUNNING
             _state = GameState.DAY
             val roleMap = WerewolfRoleSelection.assignRoles(players.keys.toList())
+
+            this.engine = WerewolfGameEngine(this)
+            this.engine!!.startGameEngine()
 
             roleMap.forEach { (uuid, role) ->
                 val werewolfPlayer = players[uuid] ?: return@forEach
@@ -207,6 +214,50 @@ class WerewolfService(val gameId: String) {
 
                     delay(1.seconds)
                     _werewolfTime += 1.seconds
+
+                    //Chek if Phase is over
+                    val advanceResult = engine?.tick()
+
+                    if (advanceResult != null) {
+                        if (advanceResult.winner != null) {
+                            announceToAll {
+                                appendSuccessPrefix()
+                                success("Das Spiel ist beendet. Gewinner: ${advanceResult.winner}")
+                            }
+                            stop()
+                            return@launch
+                        }
+
+                        when (advanceResult.nextPhase) {
+                            GameState.NIGHT -> {
+                                announceToAll {
+                                    appendInfoPrefix()
+                                    info("Die Nacht beginnt.")
+                                }
+                            }
+
+                            GameState.DAY -> {
+                                announceToAll {
+                                    appendInfoPrefix()
+                                    info("Der Tag beginnt.")
+                                }
+                            }
+
+                            GameState.VOTE -> {
+                                announceToAll {
+                                    appendInfoPrefix()
+                                    info("Die Abstimmung beginnt.")
+                                }
+                            }
+
+                            GameState.MAYOR_VOTE -> {
+                                announceToAll {
+                                    appendInfoPrefix()
+                                    info("Die Buergermeisterwahl beginnt.")
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -288,6 +339,10 @@ class WerewolfService(val gameId: String) {
 
     fun getPlayerRole(uuid: UUID): WerwolfRoles? {
         return players[uuid]?.role
+    }
+
+    fun setGameState(gameState: GameState) {
+        _state = gameState
     }
 
     fun movePlayersToPrivateChannel(playerList: List<Player>) {

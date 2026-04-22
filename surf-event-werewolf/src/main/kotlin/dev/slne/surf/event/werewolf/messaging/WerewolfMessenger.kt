@@ -4,7 +4,7 @@ import dev.slne.surf.api.core.messages.adventure.sendText
 import dev.slne.surf.api.core.messages.builder.SurfComponentBuilder
 import dev.slne.surf.event.werewolf.service.WerewolfService
 import dev.slne.surf.event.werewolf.util.WerwolfRoles
-import toBukkitPlayer
+import dev.slne.surf.event.werewolf.util.toBukkitPlayer
 
 class WerewolfMessenger(private val service: WerewolfService) {
 

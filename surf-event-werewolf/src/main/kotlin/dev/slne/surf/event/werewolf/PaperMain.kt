@@ -14,16 +14,16 @@ class PaperMain : SuspendingJavaPlugin() {
     override suspend fun onEnableAsync() {
         werewolfCommand()
 
-        val voicechatService = server.servicesManager.load(BukkitVoicechatService::class.java)
-        if (voicechatService != null) {
-            val plugin = WerewolfVoicechatPlugin()
-            voicechatService.registerPlugin(plugin)
-
-            // Speichere die VoicechatServerApi für später Zugriff
-            voicechatService.voicechatServerApi?.let {
-                WerewolfVoicechatPlugin.setVoicechatApi(it)
-            }
-        }
+//        val voicechatService = server.servicesManager.load(BukkitVoicechatService::class.java)
+//        if (voicechatService != null) {
+//            val plugin = WerewolfVoicechatPlugin()
+//            voicechatService.registerPlugin(plugin)
+//
+//            // Speichere die VoicechatServerApi für später Zugriff
+//            voicechatService.voicechatServerApi?.let {
+//                WerewolfVoicechatPlugin.setVoicechatApi(it)
+//            }
+//        }
     }
 
     override suspend fun onDisableAsync() {
