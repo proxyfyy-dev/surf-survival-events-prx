@@ -43,7 +43,7 @@ fun voteWerewolfCommand() = subcommand("vote") {
                 if (!service.engine.submitMayorVote(commandSender.uuid(), targetPlayer.uuid())) {
                     commandSender.sendText {
                         appendErrorPrefix()
-                        error("Die Burgermeisterwahl ist aktuell nicht verfugbar oder das Ziel ist ungueltig.")
+                        error("Die Bürgermeisterwahl ist aktuell nicht verfügbar oder das Ziel ist ungueltig.")
                     }
                     return@playerExecutor
                 }
@@ -52,7 +52,7 @@ fun voteWerewolfCommand() = subcommand("vote") {
                     appendSuccessPrefix()
                     success("Du hast erfolgreich fur")
                     appendSpace()
-                    variableValue(targetPlayer.name)
+                    variableValue(targetPlayer.name, TextDecoration.BOLD)
                     appendSpace()
                     success("abgestimmt!")
                 }
@@ -63,7 +63,7 @@ fun voteWerewolfCommand() = subcommand("vote") {
                 if (!service.engine.submitVote(commandSender.uuid(), targetPlayer.uuid())) {
                     commandSender.sendText {
                         appendErrorPrefix()
-                        error("Die Abstimmung ist aktuell nicht verfugbar oder das Ziel ist ungueltig.")
+                        error("Die Abstimmung ist aktuell nicht verfügbar oder das Ziel ist ungueltig.")
                     }
                     return@playerExecutor
                 }

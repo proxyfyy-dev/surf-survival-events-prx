@@ -46,7 +46,7 @@ class WerewolfMessenger(private val service: WerewolfService) {
     fun announceVotings(
         state: GameState,
         standings: List<VoteStanding>,
-        electedMayor: UUID? = null,
+        chosenPlayer: UUID? = null,
         eliminatedPlayers: List<UUID> = emptyList(),
         content: SurfComponentBuilder.() -> Unit = {}
     ) {
@@ -99,10 +99,10 @@ class WerewolfMessenger(private val service: WerewolfService) {
             when (state) {
                 GameState.MAYOR_VOTE -> {
                     appendNewInfoPrefixedLine()
-                    if (electedMayor != null) {
+                    if (chosenPlayer != null) {
                         success("Neuer Bürgermeister:")
                         appendSpace()
-                        variableValue(playerName(electedMayor))
+                        variableValue(playerName(chosenPlayer))
                     } else {
                         info("Es konnte kein Bürgermeister bestimmt werden.")
                     }

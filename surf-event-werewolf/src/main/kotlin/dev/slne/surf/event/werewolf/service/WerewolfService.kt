@@ -1,5 +1,6 @@
 package dev.slne.surf.event.werewolf.service
 
+import com.github.shynixn.mccoroutine.folia.entityDispatcher
 import com.github.shynixn.mccoroutine.folia.launch
 import dev.slne.surf.api.core.messages.CommonComponents
 import dev.slne.surf.api.core.messages.adventure.buildText
@@ -7,6 +8,7 @@ import dev.slne.surf.api.core.messages.adventure.playSound
 import dev.slne.surf.api.core.messages.adventure.sendText
 import dev.slne.surf.api.core.messages.adventure.showTitle
 import dev.slne.surf.api.core.messages.builder.SurfComponentBuilder
+import dev.slne.surf.api.paper.glow.SurfGlowingApi
 import dev.slne.surf.event.werewolf.dialog.WerewolfRoleViewDialoge
 import dev.slne.surf.event.werewolf.domain.WerewolfGameEngine
 import dev.slne.surf.event.werewolf.messaging.WerewolfMessenger
@@ -19,6 +21,8 @@ import dev.slne.surf.event.werewolf.voicechat.WerewolfVoicechatPlugin
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
+import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.Sound
 import org.bukkit.entity.Player
@@ -83,6 +87,7 @@ class WerewolfService(val gameId: String) {
         get() =_engine
 
     private var _engine = WerewolfGameEngine(this)
+    private val glowingTargetsByWerewolf = mutableMapOf<UUID, UUID>()
 
     fun openLobby(leaderUuid: UUID) {
         if (phase != GamePhase.IDLE) return
@@ -191,27 +196,40 @@ class WerewolfService(val gameId: String) {
             werewolfTask = plugin.launch {
                 while (isActive) {
                     allParticipants.forEach { participant ->
-                        participant.sendActionBar(
-                            buildText {
-                                primary("Es ist ")
-                                append(state.displayName)
-                            }
-                        )
-
-                    }
-                    if (state == GameState.NIGHT) {
-                        getAlivePlayers().forEach {
-                            it.uuid.toBukkitPlayer()?.addPotionEffect(
-                                PotionEffect(
-                                    PotionEffectType.DARKNESS,
-                                    20,
-                                    0,
-                                    false,
-                                    false,
-                                    false
-                                )
+                        withContext(plugin.entityDispatcher(participant)) {
+                            participant.sendActionBar(
+                                buildText {
+                                    primary("Es ist ")
+                                    append(state.displayName)
+                                }
                             )
                         }
+                    }
+                    if (state == GameState.NIGHT) {
+                        getAlivePlayers().forEach { werewolfPlayer ->
+                            val player = werewolfPlayer.uuid.toBukkitPlayer() ?: return@forEach
+
+                            withContext(plugin.entityDispatcher(player)) {
+                                if (werewolfPlayer.role != WerwolfRoles.WERWOLF) {
+                                    player.addPotionEffect(
+                                        PotionEffect(
+                                            PotionEffectType.BLINDNESS,
+                                            100,
+                                            0,
+                                            false,
+                                            false,
+                                            false
+                                        )
+                                    )
+                                }
+
+                                if (werewolfPlayer.role == WerwolfRoles.WERWOLF) {
+                                    makeGlowing(player)
+                                }
+                            }
+                        }
+                    } else {
+                        clearWerewolfGlowingNow()
                     }
 
                     delay(1.seconds)
@@ -298,6 +316,7 @@ class WerewolfService(val gameId: String) {
         werewolfTask = null
         _leader = null
         _phase = GamePhase.IDLE
+        clearWerewolfGlowing()
 
         players.forEach { (uuid, _) ->
             uuid.toBukkitPlayer()?.removeFromWerewolfScoreboard()
@@ -313,6 +332,61 @@ class WerewolfService(val gameId: String) {
         // Cleanup Voice Chat
         audioHandler.clearSecretPlayers()
         WerewolfVoicechatPlugin.removeAudioHandler(gameId)
+    }
+
+    private fun makeGlowing(werewolf: Player) {
+        val currentTargetId = engine.getWerewolfTargetFromLineOfSight(werewolf)
+        val previousTargetId = glowingTargetsByWerewolf[werewolf.uniqueId]
+
+        if (currentTargetId == previousTargetId) return
+
+        previousTargetId?.toBukkitPlayer()?.let { previousTarget ->
+            SurfGlowingApi.removeGlowing(previousTarget, werewolf)
+        }
+
+        if (currentTargetId == null) {
+            glowingTargetsByWerewolf.remove(werewolf.uniqueId)
+            return
+        }
+
+        val currentTarget = currentTargetId.toBukkitPlayer()
+        if (currentTarget == null) {
+            glowingTargetsByWerewolf.remove(werewolf.uniqueId)
+            return
+        }
+
+        SurfGlowingApi.makeGlowing(currentTarget, werewolf, NamedTextColor.RED)
+        glowingTargetsByWerewolf[werewolf.uniqueId] = currentTargetId
+    }
+
+    private suspend fun clearWerewolfGlowingNow() {
+        if (glowingTargetsByWerewolf.isEmpty()) return
+
+        val glowingTargets = glowingTargetsByWerewolf.toMap()
+        glowingTargetsByWerewolf.clear()
+        removeWerewolfGlowing(glowingTargets)
+    }
+
+    private fun clearWerewolfGlowing() {
+        if (glowingTargetsByWerewolf.isEmpty()) return
+
+        val glowingTargets = glowingTargetsByWerewolf.toMap()
+        glowingTargetsByWerewolf.clear()
+
+        plugin.launch {
+            removeWerewolfGlowing(glowingTargets)
+        }
+    }
+
+    private suspend fun removeWerewolfGlowing(glowingTargets: Map<UUID, UUID>) {
+        glowingTargets.forEach { (werewolfId, targetId) ->
+            val werewolf = werewolfId.toBukkitPlayer() ?: return@forEach
+            val target = targetId.toBukkitPlayer() ?: return@forEach
+
+            withContext(plugin.entityDispatcher(werewolf)) {
+                SurfGlowingApi.removeGlowing(target, werewolf)
+            }
+        }
     }
 
     fun getAlivePlayers() = players.values.filter { it.isAlive }

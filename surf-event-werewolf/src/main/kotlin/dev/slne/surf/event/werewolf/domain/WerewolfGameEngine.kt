@@ -13,6 +13,7 @@ import dev.slne.surf.event.werewolf.util.WerwolfRoles
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.TextDecoration
+import org.bukkit.entity.Player
 import java.util.UUID
 import kotlin.collections.iterator
 import kotlin.time.Duration
@@ -24,6 +25,8 @@ class WerewolfGameEngine(
     private var roundState = GameRoundState.initial()
 
     private val messenger = WerewolfMessenger(service)
+
+    private var werewolfTargetList = mutableListOf<UUID>()
 
     val currentPhase: GameState
         get() = roundState.phase
@@ -67,7 +70,8 @@ class WerewolfGameEngine(
 
                 messenger.announceVotings(roundState.phase, standings, electedMayor)
 
-                beginDayPhase(increaseDayNumber = false)
+                beginNightPhase()
+
                 PhaseAdvanceResult(
                     nextPhase = roundState.phase,
                     electedMayor = electedMayor,
@@ -94,7 +98,7 @@ class WerewolfGameEngine(
                 messenger.announceVotings(roundState.phase, standings, votedOutPlayer)
 
                 val winner = checkWinCondition()
-                if (winner != null) {
+                if (winner == null) {
                     PhaseAdvanceResult(
                         nextPhase = roundState.phase,
                         winner = winner,
@@ -257,7 +261,8 @@ class WerewolfGameEngine(
         }
 
         return counts.entries
-            .sortedWith(compareByDescending<Map.Entry<UUID, Int>> { it.value }.thenBy { service.players[it.key]?.name ?: "~" })
+            .sortedWith(compareByDescending<Map.Entry<UUID, Int>> { it.value }
+                .thenBy { service.players[it.key]?.name ?: "~" })
             .map { VoteStanding(it.key, it.value) }
     }
 
@@ -265,16 +270,42 @@ class WerewolfGameEngine(
         if (roundState.phase != GameState.NIGHT) return false
         if (service.players[target]?.isAlive != true) return false
 
-        roundState = roundState.copy(werewolfTarget = target)
+        werewolfTargetList.add(target)
         return true
     }
 
     fun resolveNight(): UUID? {
         if (roundState.phase != GameState.NIGHT) return null
+        if (werewolfTargetList.isEmpty()) return null
 
-        val target = roundState.werewolfTarget ?: return null
+        val counts = werewolfTargetList.groupingBy { it }.eachCount()
+        val winner = counts.maxByOrNull { it.value } ?: return null
+
+        val target = if (winner.value > werewolfTargetList.size / 2) {
+            winner.key
+        } else {
+            werewolfTargetList.random()
+        }
+
         service.players[target]?.isAlive = false
+        werewolfTargetList.clear()
+
+        roundState = roundState.copy(werewolfTarget = target)
+
         return target
+    }
+
+    fun getWerewolfTargetFromLineOfSight(player: Player): UUID? {
+        if (roundState.phase != GameState.NIGHT) return null
+        if (service.getPlayerRole(player.uniqueId) != WerwolfRoles.WERWOLF) return null
+        if (service.players[player.uniqueId]?.isAlive != true) return null
+
+        val targetPlayer = player.getTargetEntity(50, true) as? Player ?: return null
+        val targetId = targetPlayer.uniqueId
+
+//        if (service.players[targetId]?.isAlive != true) return null
+
+        return targetId
     }
 
     fun checkWinCondition(): GameOutcome? {
