@@ -16,7 +16,6 @@ import dev.slne.surf.event.werewolf.plugin
 import dev.slne.surf.event.werewolf.scoreboard.addToWerewolfScoreboard
 import dev.slne.surf.event.werewolf.scoreboard.removeFromWerewolfScoreboard
 import dev.slne.surf.event.werewolf.util.*
-import dev.slne.surf.event.werewolf.util.toBukkitPlayer
 import dev.slne.surf.event.werewolf.voicechat.WerewolfVoicechatPlugin
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -88,6 +87,7 @@ class WerewolfService(val gameId: String) {
 
     private var _engine = WerewolfGameEngine(this)
     private val glowingTargetsByWerewolf = mutableMapOf<UUID, UUID>()
+    private val pendingNightExecutions = mutableListOf<UUID>()
 
     fun openLobby(leaderUuid: UUID) {
         if (phase != GamePhase.IDLE) return
@@ -131,6 +131,7 @@ class WerewolfService(val gameId: String) {
         try {
             _phase = GamePhase.RUNNING
             _state = GameState.DAY
+            pendingNightExecutions.clear()
             val roleMap = WerewolfRoleSelection.assignRoles(players.keys.toList())
 
             this._engine.startGameEngine()
@@ -261,6 +262,8 @@ class WerewolfService(val gameId: String) {
                                     appendInfoPrefix()
                                     info("Der Tag beginnt.")
                                 }
+
+                                announceNightExecutionResults()
                             }
 
                             GameState.VOTE -> {
@@ -327,6 +330,7 @@ class WerewolfService(val gameId: String) {
             error("Das Spiel wurde gestoppt!")
         }
 
+        pendingNightExecutions.clear()
         players.clear()
 
         // Cleanup Voice Chat
@@ -388,6 +392,43 @@ class WerewolfService(val gameId: String) {
             }
         }
     }
+
+    fun executePlayer(playerToExecute: UUID) {
+        val player = players[playerToExecute] ?: return
+        if (!player.isAlive) return
+
+        player.isAlive = false
+
+        if (state == GameState.NIGHT) {
+            pendingNightExecutions.add(playerToExecute)
+        }
+    }
+
+    private fun announceNightExecutionResults() {
+        val executedPlayers = pendingNightExecutions.toList()
+        pendingNightExecutions.clear()
+
+        announceToAll {
+            appendInfoPrefix()
+
+            if (executedPlayers.isEmpty()) {
+                info("In dieser Nacht ist niemand ausgeschieden.")
+            } else {
+                error(
+                    if (executedPlayers.size == 1) {
+                        "In der Nacht ausgeschieden:"
+                    } else {
+                        "In der Nacht ausgeschieden sind:"
+                    }
+                )
+                appendSpace()
+                variableValue(executedPlayers.joinToString(", ", transform = ::playerName))
+            }
+        }
+    }
+
+    private fun playerName(uuid: UUID): String =
+        players[uuid]?.name ?: uuid.toBukkitPlayer()?.name ?: "Unbekannt"
 
     fun getAlivePlayers() = players.values.filter { it.isAlive }
 

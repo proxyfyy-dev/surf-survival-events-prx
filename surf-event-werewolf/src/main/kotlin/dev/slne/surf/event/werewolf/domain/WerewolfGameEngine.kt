@@ -4,18 +4,12 @@ import dev.slne.surf.api.core.messages.Colors
 import dev.slne.surf.api.core.messages.adventure.buildText
 import dev.slne.surf.event.werewolf.messaging.WerewolfMessenger
 import dev.slne.surf.event.werewolf.service.WerewolfService
-import dev.slne.surf.event.werewolf.util.GameOutcome
-import dev.slne.surf.event.werewolf.util.GameRoundState
-import dev.slne.surf.event.werewolf.util.GameState
-import dev.slne.surf.event.werewolf.util.PhaseAdvanceResult
-import dev.slne.surf.event.werewolf.util.VoteStanding
-import dev.slne.surf.event.werewolf.util.WerwolfRoles
+import dev.slne.surf.event.werewolf.util.*
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
-import java.util.UUID
-import kotlin.collections.iterator
+import java.util.*
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -95,10 +89,14 @@ class WerewolfGameEngine(
                 val standings = calculateVoteStandings()
                 val votedOutPlayer = resolveVote()
 
-                messenger.announceVotings(roundState.phase, standings, votedOutPlayer)
+                messenger.announceVotings(
+                    state = roundState.phase,
+                    standings = standings,
+                    eliminatedPlayers = listOfNotNull(votedOutPlayer)
+                )
 
                 val winner = checkWinCondition()
-                if (winner == null) {
+                if (winner != null) {
                     PhaseAdvanceResult(
                         nextPhase = roundState.phase,
                         winner = winner,
@@ -222,7 +220,7 @@ class WerewolfGameEngine(
     fun resolveVote(): UUID? {
         if (roundState.phase != GameState.VOTE) return null
         val killed = calculateVoteStandings().firstOrNull()?.target ?: return null
-        service.players[killed]?.isAlive = false
+        service.executePlayer(killed)
         return killed
     }
 
@@ -287,7 +285,7 @@ class WerewolfGameEngine(
             werewolfTargetList.random()
         }
 
-        service.players[target]?.isAlive = false
+        service.executePlayer(target)
         werewolfTargetList.clear()
 
         roundState = roundState.copy(werewolfTarget = target)
@@ -303,7 +301,7 @@ class WerewolfGameEngine(
         val targetPlayer = player.getTargetEntity(50, true) as? Player ?: return null
         val targetId = targetPlayer.uniqueId
 
-//        if (service.players[targetId]?.isAlive != true) return null
+        if (service.players[targetId]?.isAlive != true) return null
 
         return targetId
     }
