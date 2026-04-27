@@ -264,6 +264,8 @@ class WerewolfService(val gameId: String) {
                                 }
 
                                 announceNightExecutionResults()
+
+                                executePendingNightExecutions()
                             }
 
                             GameState.VOTE -> {
@@ -406,7 +408,6 @@ class WerewolfService(val gameId: String) {
 
     private fun announceNightExecutionResults() {
         val executedPlayers = pendingNightExecutions.toList()
-        pendingNightExecutions.clear()
 
         announceToAll {
             appendInfoPrefix()
@@ -423,6 +424,36 @@ class WerewolfService(val gameId: String) {
                 )
                 appendSpace()
                 variableValue(executedPlayers.joinToString(", ", transform = ::playerName))
+            }
+        }
+    }
+
+    fun executePendingNightExecutions() {
+        val executedPlayers = pendingNightExecutions.toList()
+        pendingNightExecutions.clear()
+
+        if (executedPlayers.isEmpty()) return
+
+        val viewerIds = allParticipants
+            .map { it.uniqueId }
+            .distinct()
+
+        plugin.launch {
+            executedPlayers.forEach { deadPlayerId ->
+                viewerIds.forEach { viewerId ->
+                    if (viewerId == deadPlayerId) return@forEach
+
+                    val viewer = viewerId.toBukkitPlayer() ?: return@forEach
+
+                    withContext(plugin.entityDispatcher(viewer)) {
+                        val deadPlayer = deadPlayerId.toBukkitPlayer() ?: return@withContext
+                        viewer.hidePlayer(plugin, deadPlayer)
+                    }
+                }
+
+                if (deadPlayerId.toBukkitPlayer()?.isVisibleByDefault == false) {
+                    println("Player not visible!")
+                }
             }
         }
     }
