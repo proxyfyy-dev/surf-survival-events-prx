@@ -3,14 +3,10 @@ package dev.slne.surf.event.werewolf.commands.subcommands
 import dev.jorel.commandapi.arguments.EntitySelectorArgument
 import dev.jorel.commandapi.kotlindsl.playerExecutor
 import dev.jorel.commandapi.kotlindsl.subcommand
-import dev.slne.surf.api.core.messages.Colors
-import dev.slne.surf.api.core.messages.adventure.buildText
 import dev.slne.surf.api.core.messages.adventure.sendText
 import dev.slne.surf.api.core.messages.adventure.uuid
 import dev.slne.surf.event.werewolf.service.WerewolfGameManager
 import dev.slne.surf.event.werewolf.util.GameState
-import net.kyori.adventure.text.event.ClickEvent
-import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 
@@ -24,6 +20,14 @@ fun voteWerewolfCommand() = subcommand("vote") {
             commandSender.sendText {
                 appendErrorPrefix()
                 error("Du bist aktuell in keinem Werwolf-Spiel.")
+            }
+            return@playerExecutor
+        }
+
+        if (service.isPhaseTransitioning) {
+            commandSender.sendText {
+                appendErrorPrefix()
+                error("Der Phasenwechsel laeuft gerade noch. Warte einen kurzen Moment.")
             }
             return@playerExecutor
         }

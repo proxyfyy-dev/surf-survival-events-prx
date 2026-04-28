@@ -65,6 +65,11 @@ class WerewolfService(val gameId: String) {
 
     private var _state = GameState.DAY
 
+    val isPhaseTransitioning: Boolean
+        get() = _isPhaseTransitioning
+
+    private var _isPhaseTransitioning = false
+
     private var werewolfTask: Job? = null
 
     val werewolfTime: Duration
@@ -88,6 +93,7 @@ class WerewolfService(val gameId: String) {
     private var _engine = WerewolfGameEngine(this)
     private val glowingTargetsByWerewolf = mutableMapOf<UUID, UUID>()
     private val pendingNightExecutions = mutableListOf<UUID>()
+    private val phaseTransitionDelay = 3.seconds
 
     fun openLobby(leaderUuid: UUID) {
         if (phase != GamePhase.IDLE) return
@@ -249,6 +255,8 @@ class WerewolfService(val gameId: String) {
                             return@launch
                         }
 
+                        waitForPhaseTransition()
+
                         when (advanceResult.nextPhase) {
                             GameState.NIGHT -> {
                                 announceToAll {
@@ -403,7 +411,10 @@ class WerewolfService(val gameId: String) {
 
         if (state == GameState.NIGHT) {
             pendingNightExecutions.add(playerToExecute)
+            return
         }
+
+        applyEliminations(listOf(playerToExecute))
     }
 
     private fun announceNightExecutionResults() {
@@ -432,6 +443,10 @@ class WerewolfService(val gameId: String) {
         val executedPlayers = pendingNightExecutions.toList()
         pendingNightExecutions.clear()
 
+        applyEliminations(executedPlayers)
+    }
+
+    private fun applyEliminations(executedPlayers: List<UUID>) {
         if (executedPlayers.isEmpty()) return
 
         val viewerIds = allParticipants
@@ -515,6 +530,15 @@ class WerewolfService(val gameId: String) {
         announceToRole(WerwolfRoles.WERWOLF, onlyAlive = true) {
             appendErrorPrefix()
             error("Der private Voice-Chat wurde beendet.")
+        }
+    }
+
+    private suspend fun waitForPhaseTransition() {
+        _isPhaseTransitioning = true
+        try {
+            delay(phaseTransitionDelay)
+        } finally {
+            _isPhaseTransitioning = false
         }
     }
 }

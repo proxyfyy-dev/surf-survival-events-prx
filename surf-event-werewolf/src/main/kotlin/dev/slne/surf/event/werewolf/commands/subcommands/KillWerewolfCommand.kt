@@ -12,7 +12,7 @@ import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 
 fun killWerewolfCommand() = subcommand("kill") {
-    withAliases("eat")
+//    withAliases("eat")
     withArguments(EntitySelectorArgument.OnePlayer("player"))
 
     playerExecutor { commandSender, arguments ->
@@ -27,7 +27,13 @@ fun killWerewolfCommand() = subcommand("kill") {
             return@playerExecutor
         }
 
-        commandSender.player?.getTargetEntity(100)?.name
+        if (service.isPhaseTransitioning) {
+            commandSender.sendText {
+                appendErrorPrefix()
+                error("Der Phasenwechsel laeuft gerade noch. Warte einen kurzen Moment.")
+            }
+            return@playerExecutor
+        }
 
         val currentPhase = service.engine.currentPhase
         if (currentPhase != GameState.NIGHT) {
@@ -44,6 +50,14 @@ fun killWerewolfCommand() = subcommand("kill") {
                 appendErrorPrefix()
                 error("Du kannst niemanden töten oder essen!")
             }
+        }
+
+        if (targetPlayer == commandSender) {
+            commandSender.sendText {
+                appendErrorPrefix()
+                error("Du kannst dich nicht selber essen :)")
+            }
+            return@playerExecutor
         }
 
         service.engine.submitWerewolfTarget(targetPlayer.uuid())
