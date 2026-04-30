@@ -2,6 +2,7 @@ package dev.slne.surf.event.werewolf.domain
 
 import dev.slne.surf.api.core.messages.Colors
 import dev.slne.surf.api.core.messages.adventure.buildText
+import dev.slne.surf.event.werewolf.domain.roleActions.AmorActions
 import dev.slne.surf.event.werewolf.messaging.WerewolfMessenger
 import dev.slne.surf.event.werewolf.service.WerewolfService
 import dev.slne.surf.event.werewolf.util.*
@@ -19,8 +20,7 @@ class WerewolfGameEngine(
     private var roundState = GameRoundState.initial()
 
     private val messenger = WerewolfMessenger(service)
-
-    private var werewolfTargetList = mutableListOf<UUID>()
+    private fun nightResolver() = NightResolver(service.players, roundState.dayNumber)
 
     val currentPhase: GameState
         get() = roundState.phase
@@ -29,7 +29,8 @@ class WerewolfGameEngine(
         get() = roundState.phaseRemainingSeconds
 
     fun startGameEngine(): PhaseAdvanceResult {
-        roundState = GameRoundState(phase = GameState.DAY,
+        roundState = GameRoundState(
+            phase = GameState.DAY,
             dayNumber = 1,
             nightActions = mutableListOf(),
             votes = mutableMapOf(),
@@ -40,98 +41,104 @@ class WerewolfGameEngine(
     }
 
     fun tick(): PhaseAdvanceResult? {
-        if (roundState.phaseRemainingSeconds > 1.seconds) {
-            roundState = roundState.copy(
-                phaseRemainingSeconds = roundState.phaseRemainingSeconds - 1.seconds,
-            )
-
-            println(phaseRemainingSeconds)
-            println(roundState.phase)
-
-            return null
+        if (roundState.phaseRemainingSeconds <= 1.seconds) {
+            roundState = roundState.copy(phaseRemainingSeconds = 0.seconds)
+            return advancePhase()
         }
 
-        roundState = roundState.copy(phaseRemainingSeconds = 0.seconds)
-        return advancePhase()
+        roundState = roundState.copy(
+            phaseRemainingSeconds = roundState.phaseRemainingSeconds - 1.seconds,
+        )
+
+        println(phaseRemainingSeconds)
+        println(roundState.phase)
+
+        return null
     }
 
     fun advancePhase(): PhaseAdvanceResult {
         return when (roundState.phase) {
-            GameState.MAYOR_VOTE -> {
-                val standings = calculateMayorVoteStandings()
-                val electedMayor = resolveMayorVote()
-                roundState = roundState.copy(mayorPlayer = electedMayor)
-
-                messenger.announceVotings(roundState.phase, standings, electedMayor)
-
-                beginNightPhase()
-
-                PhaseAdvanceResult(
-                    nextPhase = roundState.phase,
-                    electedMayor = electedMayor,
-                    voteStandings = standings
-                )
-            }
-
-            GameState.DAY -> {
-                if (roundState.dayNumber == 1 && roundState.mayorPlayer == null) {
-                    beginMayorVoting()
-                } else {
-                    beginVotePhase()
-                }
-
-                PhaseAdvanceResult(
-                    nextPhase = roundState.phase,
-                )
-            }
-
-            GameState.VOTE -> {
-                val standings = calculateVoteStandings()
-                val votedOutPlayer = resolveVote()
-
-                messenger.announceVotings(
-                    state = roundState.phase,
-                    standings = standings,
-                    eliminatedPlayers = listOfNotNull(votedOutPlayer)
-                )
-
-                val winner = checkWinCondition()
-                if (winner != null) {
-                    PhaseAdvanceResult(
-                        nextPhase = roundState.phase,
-                        winner = winner,
-                        eliminatedPlayers = listOfNotNull(votedOutPlayer),
-                        voteStandings = standings
-                    )
-                } else {
-                    beginNightPhase()
-                    PhaseAdvanceResult(
-                        nextPhase = roundState.phase,
-                        eliminatedPlayers = listOfNotNull(votedOutPlayer),
-                        voteStandings = standings
-                    )
-                }
-            }
-
-            GameState.NIGHT -> {
-                val killedAtNight = resolveNight()
-
-                val winner = checkWinCondition()
-                if (winner != null) {
-                    PhaseAdvanceResult(
-                        nextPhase = roundState.phase,
-                        winner = winner,
-                        eliminatedPlayers = listOfNotNull(killedAtNight)
-                    )
-                } else {
-                    beginDayPhase(increaseDayNumber = true)
-                    PhaseAdvanceResult(
-                        nextPhase = roundState.phase,
-                        eliminatedPlayers = listOfNotNull(killedAtNight)
-                    )
-                }
-            }
+            GameState.MAYOR_VOTE -> advanceMayorVotePhase()
+            GameState.DAY -> advanceDayPhase()
+            GameState.VOTE -> advanceVotePhase()
+            GameState.NIGHT -> advanceNightPhase()
         }
+    }
+
+    private fun advanceMayorVotePhase(): PhaseAdvanceResult {
+        val standings = calculateMayorVoteStandings()
+        val electedMayor = resolveMayorVote()
+        roundState = roundState.copy(mayorPlayer = electedMayor)
+
+        messenger.announceVotings(roundState.phase, standings, electedMayor)
+        beginNightPhase()
+
+        return PhaseAdvanceResult(
+            nextPhase = roundState.phase,
+            electedMayor = electedMayor,
+            voteStandings = standings
+        )
+    }
+
+    private fun advanceDayPhase(): PhaseAdvanceResult {
+        if (isFirstDayWithoutMayor()) {
+            beginMayorVoting()
+        } else {
+            beginVotePhase()
+        }
+
+        return PhaseAdvanceResult(nextPhase = roundState.phase)
+    }
+
+    private fun advanceVotePhase(): PhaseAdvanceResult {
+        val standings = calculateVoteStandings()
+        val votedOutPlayer = resolveVote()
+
+        messenger.announceVotings(
+            state = roundState.phase,
+            standings = standings,
+            eliminatedPlayers = listOfNotNull(votedOutPlayer)
+        )
+
+        val winner = checkWinCondition()
+        if (winner != null) {
+            return PhaseAdvanceResult(
+                nextPhase = roundState.phase,
+                winner = winner,
+                eliminatedPlayers = listOfNotNull(votedOutPlayer),
+                voteStandings = standings
+            )
+        }
+
+        beginNightPhase()
+        return PhaseAdvanceResult(
+            nextPhase = roundState.phase,
+            eliminatedPlayers = listOfNotNull(votedOutPlayer),
+            voteStandings = standings
+        )
+    }
+
+    private fun advanceNightPhase(): PhaseAdvanceResult {
+        val nightResolution = resolveNight()
+        val winner = checkWinCondition()
+
+        if (winner != null) {
+            return PhaseAdvanceResult(
+                nextPhase = roundState.phase,
+                winner = winner,
+                eliminatedPlayers = nightResolution.eliminatedPlayers
+            )
+        }
+
+        beginDayPhase(increaseDayNumber = true)
+        return PhaseAdvanceResult(
+            nextPhase = roundState.phase,
+            eliminatedPlayers = nightResolution.eliminatedPlayers
+        )
+    }
+
+    private fun isFirstDayWithoutMayor(): Boolean {
+        return roundState.dayNumber == 1 && roundState.mayorPlayer == null
     }
 
     fun beginMayorVoting() {
@@ -174,6 +181,7 @@ class WerewolfGameEngine(
         roundState = roundState.copy(
             phase = GameState.NIGHT,
             phaseRemainingSeconds = GameState.NIGHT.time,
+            protectedPlayer = null,
             werewolfTarget = null,
             nightActions = mutableListOf()
         )
@@ -187,6 +195,7 @@ class WerewolfGameEngine(
             phaseRemainingSeconds = GameState.DAY.time,
             dayNumber = if (increaseDayNumber) roundState.dayNumber + 1 else roundState.dayNumber,
             votes = mutableMapOf(),
+            protectedPlayer = null,
             werewolfTarget = null,
             nightActions = mutableListOf()
         )
@@ -195,12 +204,12 @@ class WerewolfGameEngine(
     }
 
     fun submitMayorVote(voter: UUID, target: UUID): Boolean {
-        if (roundState.phase != GameState.MAYOR_VOTE) return false
-        if (service.players[voter]?.isAlive != true) return false
-        if (service.players[target]?.isAlive != true) return false
-
-        roundState.mayorVotes[voter] = target
-        return true
+        return submitVote(
+            expectedPhase = GameState.MAYOR_VOTE,
+            votes = roundState.mayorVotes,
+            voter = voter,
+            target = target
+        )
     }
 
     fun resolveMayorVote(): UUID? {
@@ -209,12 +218,12 @@ class WerewolfGameEngine(
     }
 
     fun submitVote(voter: UUID, target: UUID): Boolean {
-        if (roundState.phase != GameState.VOTE) return false
-        if (service.players[voter]?.isAlive != true) return false
-        if (service.players[target]?.isAlive != true) return false
-
-        roundState.votes[voter] = target
-        return true
+        return submitVote(
+            expectedPhase = GameState.VOTE,
+            votes = roundState.votes,
+            voter = voter,
+            target = target
+        )
     }
 
     fun resolveVote(): UUID? {
@@ -224,73 +233,88 @@ class WerewolfGameEngine(
         return killed
     }
 
-    private fun calculateMayorVoteStandings(): List<VoteStanding> {
-        if (roundState.phase != GameState.MAYOR_VOTE) return emptyList()
-        if (roundState.mayorVotes.isEmpty()) return emptyList()
-
-        val counts = mutableMapOf<UUID, Int>()
-
-        for ((voter, target) in roundState.mayorVotes) {
-            val voterPlayer = service.players[voter] ?: continue
-            if (!voterPlayer.isAlive) continue
-            if (service.players[target]?.isAlive != true) continue
-
-            counts[target] = (counts[target] ?: 0) + 1
-        }
-
-        return counts.entries
-            .sortedWith(compareByDescending<Map.Entry<UUID, Int>> { it.value }.thenBy { service.players[it.key]?.name ?: "~" })
-            .map { VoteStanding(it.key, it.value) }
-    }
-
-    private fun calculateVoteStandings(): List<VoteStanding> {
-        if (roundState.phase != GameState.VOTE) return emptyList()
-        if (roundState.votes.isEmpty()) return emptyList()
-
-        val counts = mutableMapOf<UUID, Int>()
-
-        for ((voter, target) in roundState.votes) {
-            val voterPlayer = service.players[voter] ?: continue
-            if (!voterPlayer.isAlive) continue
-            if (service.players[target]?.isAlive != true) continue
-
-            val weight = if (voterPlayer.role == WerwolfRoles.MAYOR) 2 else 1
-            counts[target] = (counts[target] ?: 0) + weight
-        }
-
-        return counts.entries
-            .sortedWith(compareByDescending<Map.Entry<UUID, Int>> { it.value }
-                .thenBy { service.players[it.key]?.name ?: "~" })
-            .map { VoteStanding(it.key, it.value) }
-    }
-
-    fun submitWerewolfTarget(target: UUID): Boolean {
-        if (roundState.phase != GameState.NIGHT) return false
+    private fun submitVote(
+        expectedPhase: GameState,
+        votes: MutableMap<UUID, UUID>,
+        voter: UUID,
+        target: UUID,
+    ): Boolean {
+        if (roundState.phase != expectedPhase) return false
+        if (service.players[voter]?.isAlive != true) return false
         if (service.players[target]?.isAlive != true) return false
 
-        werewolfTargetList.add(target)
+        votes[voter] = target
         return true
     }
 
-    fun resolveNight(): UUID? {
-        if (roundState.phase != GameState.NIGHT) return null
-        if (werewolfTargetList.isEmpty()) return null
+    private fun calculateVoteStandings(
+        expectedPhase: GameState,
+        votes: Map<UUID, UUID>,
+        weightSelector: (WerewolfPlayer) -> Int,
+    ): List<VoteStanding> {
+        if (roundState.phase != expectedPhase) return emptyList()
+        if (votes.isEmpty()) return emptyList()
 
-        val counts = werewolfTargetList.groupingBy { it }.eachCount()
-        val winner = counts.maxByOrNull { it.value } ?: return null
+        val counts = mutableMapOf<UUID, Int>()
 
-        val target = if (winner.value > werewolfTargetList.size / 2) {
-            winner.key
-        } else {
-            werewolfTargetList.random()
+        for ((voter, target) in votes) {
+            val voterPlayer = service.players[voter] ?: continue
+            if (!voterPlayer.isAlive) continue
+            if (service.players[target]?.isAlive != true) continue
+
+            counts[target] = (counts[target] ?: 0) + weightSelector(voterPlayer)
         }
 
-        service.executePlayer(target)
-        werewolfTargetList.clear()
+        return counts.entries
+            .sortedWith(
+                compareByDescending<Map.Entry<UUID, Int>> { it.value }
+                    .thenBy { service.players[it.key]?.name ?: "~" }
+            )
+            .map { VoteStanding(it.key, it.value) }
+    }
 
-        roundState = roundState.copy(werewolfTarget = target)
+    private fun calculateMayorVoteStandings(): List<VoteStanding> {
+        return calculateVoteStandings(
+            expectedPhase = GameState.MAYOR_VOTE,
+            votes = roundState.mayorVotes
+        ) { 1 }
+    }
 
-        return target
+    private fun calculateVoteStandings(): List<VoteStanding> {
+        return calculateVoteStandings(
+            expectedPhase = GameState.VOTE,
+            votes = roundState.votes
+        ) { voterPlayer ->
+            if (voterPlayer.role == WerwolfRoles.MAYOR) 2 else 1
+        }
+    }
+
+    fun submitNightAction(action: NightAction): Boolean {
+        if (roundState.phase != GameState.NIGHT) return false
+        val actor = service.players[action.actor] ?: return false
+        if (!actor.isAlive) return false
+        if (!nightResolver().isValid(action, actor.role)) return false
+
+        replaceNightAction(action)
+
+        return true
+    }
+
+    fun resolveNight(): NightResolutionResult {
+        if (roundState.phase != GameState.NIGHT) return NightResolutionResult()
+
+        val resolution = nightResolver().resolve(roundState.nightActions)
+        AmorActions.apply(service.players, resolution.lovers)
+        announceLovers(resolution.lovers)
+        resolution.eliminatedPlayers.forEach(service::executePlayer)
+
+        roundState = roundState.copy(
+            protectedPlayer = resolution.protectedPlayer,
+            werewolfTarget = resolution.werewolfTarget,
+            nightActions = mutableListOf()
+        )
+
+        return resolution
     }
 
     fun getWerewolfTargetFromLineOfSight(player: Player): UUID? {
@@ -308,6 +332,8 @@ class WerewolfGameEngine(
 
     fun checkWinCondition(): GameOutcome? {
         val alivePlayers = service.players.values.filter { it.isAlive }
+        if (hasAliveLoverPair(alivePlayers)) return GameOutcome.LoversWin
+
         val aliveWerewolves = alivePlayers.count { it.role == WerwolfRoles.WERWOLF }
         val aliveVillagers = alivePlayers.count { it.role != WerwolfRoles.WERWOLF }
 
@@ -315,6 +341,58 @@ class WerewolfGameEngine(
         if (aliveWerewolves >= aliveVillagers) return GameOutcome.WerewolvesWin
 
         return null
+    }
+
+    private fun hasAliveLoverPair(alivePlayers: List<WerewolfPlayer>): Boolean {
+        if (alivePlayers.size != 2) return false
+
+        val firstPlayer = alivePlayers[0]
+        val secondPlayer = alivePlayers[1]
+
+        return firstPlayer.inLoveWith == secondPlayer.uuid &&
+                secondPlayer.inLoveWith == firstPlayer.uuid
+    }
+
+    private fun replaceNightAction(newAction: NightAction) {
+        roundState.nightActions.removeAll { existingAction ->
+            isSameNightActionSlot(existingAction, newAction)
+        }
+        roundState.nightActions.add(newAction)
+    }
+
+    private fun isSameNightActionSlot(existingAction: NightAction, newAction: NightAction): Boolean {
+        return existingAction.actor == newAction.actor &&
+                existingAction::class == newAction::class
+    }
+
+    private fun announceLovers(lovers: Pair<UUID, UUID>?) {
+        if (lovers == null) return
+
+        val (firstId, secondId) = lovers
+        val firstName = service.players[firstId]?.name ?: "Unbekannt"
+        val secondName = service.players[secondId]?.name ?: "Unbekannt"
+
+        messenger.announceToPlayer(firstId) {
+            appendSuccessPrefix()
+            success("Du bist nun ein Liebespaar mit")
+            appendSpace()
+            variableValue(secondName)
+            appendSpace()
+            success(".")
+            appendNewInfoPrefixedLine()
+            info("Wenn einer von euch stirbt, stirbt der andere auch.")
+        }
+
+        messenger.announceToPlayer(secondId) {
+            appendSuccessPrefix()
+            success("Du bist nun ein Liebespaar mit")
+            appendSpace()
+            variableValue(firstName)
+            appendSpace()
+            success(".")
+            appendNewInfoPrefixedLine()
+            info("Wenn einer von euch stirbt, stirbt der andere auch.")
+        }
     }
 
     private fun createClickable() = buildText {

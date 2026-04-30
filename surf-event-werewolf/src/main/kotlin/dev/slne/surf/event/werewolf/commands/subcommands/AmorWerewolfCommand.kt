@@ -12,12 +12,13 @@ import dev.slne.surf.event.werewolf.util.WerwolfRoles
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 
-fun killWerewolfCommand() = subcommand("kill") {
-//    withAliases("eat")
-    withArguments(EntitySelectorArgument.OnePlayer("player"))
+fun amorWerewolfCommand() = subcommand("amor") {
+    withArguments(EntitySelectorArgument.OnePlayer("firstPlayer"))
+    withArguments(EntitySelectorArgument.OnePlayer("secondPlayer"))
 
     playerExecutor { commandSender, arguments ->
-        val targetPlayer = arguments.get("player") as Player
+        val firstPlayer = arguments.get("firstPlayer") as Player
+        val secondPlayer = arguments.get("secondPlayer") as Player
         val service = WerewolfGameManager.getGameForPlayer(commandSender.uuid())
 
         if (service == null) {
@@ -36,63 +37,57 @@ fun killWerewolfCommand() = subcommand("kill") {
             return@playerExecutor
         }
 
-        val currentPhase = service.engine.currentPhase
-        if (currentPhase != GameState.NIGHT) {
+        if (service.engine.currentPhase != GameState.NIGHT) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst diesen Befehl nur wahrend der Nacht benutzen!")
+                error("Du kannst diesen Befehl nur waehrend der Nacht benutzen!")
             }
             return@playerExecutor
         }
 
-        val playerRole = service.getPlayerRole(commandSender.uuid())
-        if (playerRole != WerwolfRoles.WERWOLF) {
+        if (service.getPlayerRole(commandSender.uuid()) != WerwolfRoles.AMOR) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst niemanden toeten oder essen!")
+                error("Nur Amor darf Liebespaare bestimmen.")
             }
             return@playerExecutor
         }
 
-        if (targetPlayer == commandSender) {
+        if (firstPlayer.uniqueId == secondPlayer.uniqueId) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst dich nicht selber essen :)")
+                error("Du musst zwei verschiedene Spieler auswaehlen.")
             }
             return@playerExecutor
         }
 
         val submitted = service.engine.submitNightAction(
-            NightAction.WerewolfKill(
+            NightAction.AmorLink(
                 actor = commandSender.uuid(),
-                target = targetPlayer.uuid()
+                first = firstPlayer.uuid(),
+                second = secondPlayer.uuid()
             )
         )
 
         if (!submitted) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Deine Nachtaktion konnte nicht gespeichert werden.")
+                error("Das Liebespaar konnte nicht gespeichert werden. Amor darf nur in der ersten Nacht handeln.")
             }
             return@playerExecutor
         }
 
         commandSender.sendText {
             appendSuccessPrefix()
-            success("Du hast den Dorfbewohner")
+            success("Du hast")
             appendSpace()
-            variableValue(targetPlayer.name, TextDecoration.BOLD)
+            variableValue(firstPlayer.name, TextDecoration.BOLD)
             appendSpace()
-            success("als dein Opfer auserwaehlt!")
+            success("und")
+            appendSpace()
+            variableValue(secondPlayer.name, TextDecoration.BOLD)
+            appendSpace()
+            success("als Liebespaar bestimmt.")
         }
-
-        service.announceToRole(
-            WerwolfRoles.WERWOLF,
-            true,
-            content = {
-                appendInfoPrefix()
-                info("")
-            }
-        )
     }
 }

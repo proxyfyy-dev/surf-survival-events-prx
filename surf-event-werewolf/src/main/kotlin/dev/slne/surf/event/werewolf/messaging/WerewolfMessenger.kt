@@ -7,9 +7,13 @@ import dev.slne.surf.event.werewolf.util.GameState
 import dev.slne.surf.event.werewolf.util.VoteStanding
 import dev.slne.surf.event.werewolf.util.WerwolfRoles
 import dev.slne.surf.event.werewolf.util.toBukkitPlayer
-import java.util.UUID
+import java.util.*
 
 class WerewolfMessenger(private val service: WerewolfService) {
+
+    fun announceToPlayer(playerId: UUID, content: SurfComponentBuilder.() -> Unit) {
+        playerId.toBukkitPlayer()?.sendText(content)
+    }
 
     fun announceToAll(content: SurfComponentBuilder.() -> Unit) {
         service.players.keys.forEach { uuid ->

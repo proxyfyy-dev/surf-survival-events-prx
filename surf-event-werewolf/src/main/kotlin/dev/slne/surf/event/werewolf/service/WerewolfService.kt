@@ -404,17 +404,38 @@ class WerewolfService(val gameId: String) {
     }
 
     fun executePlayer(playerToExecute: UUID) {
-        val player = players[playerToExecute] ?: return
-        if (!player.isAlive) return
+        val executionChain = collectExecutionChain(playerToExecute)
+        if (executionChain.isEmpty()) return
 
-        player.isAlive = false
+        executionChain.forEach { executedPlayerId ->
+            players[executedPlayerId]?.isAlive = false
+        }
 
         if (state == GameState.NIGHT) {
-            pendingNightExecutions.add(playerToExecute)
+            pendingNightExecutions.addAll(executionChain)
             return
         }
 
-        applyEliminations(listOf(playerToExecute))
+        applyEliminations(executionChain)
+    }
+
+    private fun collectExecutionChain(
+        playerToExecute: UUID,
+        collectedPlayers: LinkedHashSet<UUID> = linkedSetOf(),
+    ): List<UUID> {
+        val player = players[playerToExecute] ?: return collectedPlayers.toList()
+        if (!player.isAlive) return collectedPlayers.toList()
+        if (!collectedPlayers.add(playerToExecute)) return collectedPlayers.toList()
+
+        val loverId = player.inLoveWith
+        if (loverId != null && loverId !in collectedPlayers) {
+            val lover = players[loverId]
+            if (lover?.isAlive == true) {
+                collectExecutionChain(loverId, collectedPlayers)
+            }
+        }
+
+        return collectedPlayers.toList()
     }
 
     private fun announceNightExecutionResults() {
