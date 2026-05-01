@@ -1,6 +1,9 @@
 package dev.slne.surf.event.werewolf.domain
 
 import dev.slne.surf.event.werewolf.domain.roleActions.AmorActions
+import dev.slne.surf.event.werewolf.domain.roleActions.DoctorActions
+import dev.slne.surf.event.werewolf.domain.roleActions.SeerActions
+import dev.slne.surf.event.werewolf.domain.roleActions.WitchActions
 import dev.slne.surf.event.werewolf.util.NightAction
 import dev.slne.surf.event.werewolf.util.NightResolutionResult
 import dev.slne.surf.event.werewolf.util.WerewolfPlayer
@@ -10,6 +13,7 @@ import java.util.*
 internal class NightResolver(
     private val players: Map<UUID, WerewolfPlayer>,
     private val dayNumber: Int,
+    private val werewolfTarget: UUID?,
 ) {
 
     fun isValid(action: NightAction, actorRole: WerwolfRoles): Boolean {
@@ -19,17 +23,14 @@ internal class NightResolver(
                     action.actor != action.target
 
             is NightAction.SeerInspect -> actorRole == WerwolfRoles.SEER &&
-                    isValidLivingTarget(action.target)
+                    SeerActions.isValid(action, players)
 
             is NightAction.DoctorProtect -> actorRole == WerwolfRoles.DOCTOR &&
-                    isValidLivingTarget(action.target)
+                    DoctorActions.isValid(action, players, werewolfTarget)
 
-            is NightAction.WitchHeal -> actorRole == WerwolfRoles.WITCH &&
-                    isValidLivingTarget(action.target)
-
+            is NightAction.WitchHeal,
             is NightAction.WitchPoison -> actorRole == WerwolfRoles.WITCH &&
-                    isValidLivingTarget(action.target) &&
-                    action.actor != action.target
+                    WitchActions.isValid(action, players, werewolfTarget, dayNumber)
 
             is NightAction.AmorLink -> actorRole == WerwolfRoles.AMOR &&
                     AmorActions.isValid(action, players, dayNumber)
@@ -46,23 +47,27 @@ internal class NightResolver(
 
     fun resolve(actions: List<NightAction>): NightResolutionResult {
         val lovers = AmorActions.resolve(actions)
-        val werewolfTarget = resolveWerewolfTarget(
-            actions.filterIsInstance<NightAction.WerewolfKill>()
-        )
-        val protectedPlayer = actions
-            .filterIsInstance<NightAction.DoctorProtect>()
-            .lastOrNull()
-            ?.target
+        val resolvedWerewolfTarget = resolveWerewolfTarget(actions)
+        val doctorProtectedPlayer = DoctorActions.resolveTarget(actions)
+        val witchHealTarget = WitchActions.resolveHealTarget(actions)
+        val witchPoisonTarget = WitchActions.resolvePoisonTarget(actions)
         val eliminatedPlayers = linkedSetOf<UUID>()
 
-        if (werewolfTarget != null && werewolfTarget != protectedPlayer) {
-            eliminatedPlayers.add(werewolfTarget)
+        if (resolvedWerewolfTarget != null &&
+            resolvedWerewolfTarget != doctorProtectedPlayer &&
+            resolvedWerewolfTarget != witchHealTarget
+        ) {
+            eliminatedPlayers.add(resolvedWerewolfTarget)
+        }
+
+        if (witchPoisonTarget != null) {
+            eliminatedPlayers.add(witchPoisonTarget)
         }
 
         return NightResolutionResult(
             eliminatedPlayers = eliminatedPlayers.toList(),
-            werewolfTarget = werewolfTarget,
-            protectedPlayer = protectedPlayer,
+            werewolfTarget = resolvedWerewolfTarget,
+            protectedPlayer = witchHealTarget ?: doctorProtectedPlayer,
             lovers = lovers
         )
     }
@@ -71,16 +76,17 @@ internal class NightResolver(
         return players[target]?.isAlive == true
     }
 
-    private fun resolveWerewolfTarget(actions: List<NightAction.WerewolfKill>): UUID? {
-        if (actions.isEmpty()) return null
+    fun resolveWerewolfTarget(actions: List<NightAction>): UUID? {
+        val werewolfActions = actions.filterIsInstance<NightAction.WerewolfKill>()
+        if (werewolfActions.isEmpty()) return null
 
-        val counts = actions.groupingBy { it.target }.eachCount()
+        val counts = werewolfActions.groupingBy { it.target }.eachCount()
         val winner = counts.maxByOrNull { it.value } ?: return null
 
-        return if (winner.value > actions.size / 2) {
+        return if (winner.value > werewolfActions.size / 2) {
             winner.key
         } else {
-            actions.random().target
+            werewolfActions.random().target
         }
     }
 }

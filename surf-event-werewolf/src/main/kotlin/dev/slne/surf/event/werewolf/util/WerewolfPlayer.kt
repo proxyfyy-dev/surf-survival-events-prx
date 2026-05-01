@@ -1,13 +1,15 @@
 package dev.slne.surf.event.werewolf.util
 
 import dev.slne.surf.api.paper.extensions.server
-import java.util.UUID
+import java.util.*
 
 data class WerewolfPlayer(
     val uuid: UUID,
     var role: WerwolfRoles = WerwolfRoles.VILLAGER,
     var isAlive: Boolean = true,
     var inLoveWith: UUID? = null,
+    var hasWitchHealPotion: Boolean = true,
+    var hasWitchPoisonPotion: Boolean = true,
     val votes: MutableSet<UUID> = mutableSetOf(),
     var chosenVictim: UUID? = null
 ) {

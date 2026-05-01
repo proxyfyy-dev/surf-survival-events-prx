@@ -7,14 +7,12 @@ import dev.slne.surf.api.core.messages.adventure.sendText
 import dev.slne.surf.api.core.messages.adventure.uuid
 import dev.slne.surf.event.werewolf.service.WerewolfGameManager
 import dev.slne.surf.event.werewolf.util.GameState
-import dev.slne.surf.event.werewolf.util.NightAction
 import dev.slne.surf.event.werewolf.util.NightStep
 import dev.slne.surf.event.werewolf.util.WerwolfRoles
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 
-fun killWerewolfCommand() = subcommand("kill") {
-//    withAliases("eat")
+fun inspectWerewolfCommand() = subcommand("inspect") {
     withArguments(EntitySelectorArgument.OnePlayer("player"))
 
     playerExecutor { commandSender, arguments ->
@@ -37,8 +35,7 @@ fun killWerewolfCommand() = subcommand("kill") {
             return@playerExecutor
         }
 
-        val currentPhase = service.engine.currentPhase
-        if (currentPhase != GameState.NIGHT) {
+        if (service.engine.currentPhase != GameState.NIGHT) {
             commandSender.sendText {
                 appendErrorPrefix()
                 error("Du kannst diesen Befehl nur während der Nacht benutzen!")
@@ -46,19 +43,18 @@ fun killWerewolfCommand() = subcommand("kill") {
             return@playerExecutor
         }
 
-        val playerRole = service.getPlayerRole(commandSender.uuid())
-        if (playerRole != WerwolfRoles.WERWOLF) {
+        if (service.getPlayerRole(commandSender.uuid()) != WerwolfRoles.SEER) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst niemanden töten oder essen!")
+                error("Nur die Seherin darf Rollen aufdecken.")
             }
             return@playerExecutor
         }
 
-        if (service.engine.currentNightStep != NightStep.WEREWOLVES) {
+        if (service.engine.currentNightStep != NightStep.SEER) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Die Werwölfe sind gerade nicht am Zug.")
+                error("Die Seherin ist gerade nicht am Zug.")
             }
             return@playerExecutor
         }
@@ -66,42 +62,34 @@ fun killWerewolfCommand() = subcommand("kill") {
         if (targetPlayer == commandSender) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst dich nicht selber essen :)")
+                error("Du kannst nicht deine eigene Rolle aufdecken.")
             }
             return@playerExecutor
         }
 
-        val submitted = service.engine.submitNightAction(
-            NightAction.WerewolfKill(
-                actor = commandSender.uuid(),
-                target = targetPlayer.uuid()
-            )
+        val inspectedRole = service.engine.inspectWithSeer(
+            actor = commandSender.uuid(),
+            target = targetPlayer.uuid()
         )
 
-        if (!submitted) {
+        if (inspectedRole == null) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Deine Nachtaktion konnte nicht gespeichert werden.")
+                error("Deine Seher-Aktion konnte nicht gespeichert werden.")
             }
             return@playerExecutor
         }
 
         commandSender.sendText {
             appendSuccessPrefix()
-            success("Du hast den Dorfbewohner")
+            success("Die Rolle von")
             appendSpace()
             variableValue(targetPlayer.name, TextDecoration.BOLD)
             appendSpace()
-            success("als dein Opfer ausgewählt!")
+            success("ist")
+            appendSpace()
+            append(inspectedRole.displayName)
+            spacer(".")
         }
-
-        service.announceToRole(
-            WerwolfRoles.WERWOLF,
-            true,
-            content = {
-                appendInfoPrefix()
-                info("")
-            }
-        )
     }
 }

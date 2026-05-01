@@ -92,6 +92,8 @@ class WerewolfService(val gameId: String) {
 
     private var _engine = WerewolfGameEngine(this)
     private val glowingTargetsByWerewolf = mutableMapOf<UUID, UUID>()
+    private val glowingTargetsByDoctor = mutableMapOf<UUID, UUID>()
+    private val glowingTargetsByWitch = mutableMapOf<UUID, UUID>()
     private val pendingNightExecutions = mutableListOf<UUID>()
     private val phaseTransitionDelay = 3.seconds
 
@@ -217,7 +219,9 @@ class WerewolfService(val gameId: String) {
                             val player = werewolfPlayer.uuid.toBukkitPlayer() ?: return@forEach
 
                             withContext(plugin.entityDispatcher(player)) {
-                                if (werewolfPlayer.role != WerwolfRoles.WERWOLF) {
+                                if (engine.canRoleActAtNight(werewolfPlayer.role)) {
+                                    player.removePotionEffect(PotionEffectType.BLINDNESS)
+                                } else {
                                     player.addPotionEffect(
                                         PotionEffect(
                                             PotionEffectType.BLINDNESS,
@@ -230,13 +234,42 @@ class WerewolfService(val gameId: String) {
                                     )
                                 }
 
-                                if (werewolfPlayer.role == WerwolfRoles.WERWOLF) {
+                                if (engine.currentNightStep == NightStep.WEREWOLVES &&
+                                    werewolfPlayer.role == WerwolfRoles.WERWOLF
+                                ) {
                                     makeGlowing(player)
+                                }
+
+                                if (engine.currentNightStep == NightStep.DOCTOR &&
+                                    werewolfPlayer.role == WerwolfRoles.DOCTOR
+                                ) {
+                                    makeDoctorGlowing(player)
+                                }
+
+                                if (engine.currentNightStep == NightStep.WITCH &&
+                                    werewolfPlayer.role == WerwolfRoles.WITCH
+                                ) {
+                                    makeWitchGlowing(player)
                                 }
                             }
                         }
+
+                        if (engine.currentNightStep != NightStep.WEREWOLVES) {
+                            clearWerewolfGlowingNow()
+                        }
+
+                        if (engine.currentNightStep != NightStep.DOCTOR) {
+                            clearDoctorGlowingNow()
+                        }
+
+                        if (engine.currentNightStep != NightStep.WITCH) {
+                            clearWitchGlowingNow()
+                        }
                     } else {
+                        clearBlindnessNow()
                         clearWerewolfGlowingNow()
+                        clearDoctorGlowingNow()
+                        clearWitchGlowingNow()
                     }
 
                     delay(1.seconds)
@@ -247,57 +280,35 @@ class WerewolfService(val gameId: String) {
 
                     if (advanceResult != null) {
                         if (advanceResult.winner != null) {
-                            announceToAll {
-                                appendSuccessPrefix()
-                                success("Das Spiel ist beendet. Gewinner: ${advanceResult.winner}")
-                            }
+                            messenger.announceWinner(advanceResult.winner)
                             stop()
                             return@launch
                         }
 
                         waitForPhaseTransition()
 
+                        messenger.announcePhaseStarted(advanceResult.nextPhase)
+
                         when (advanceResult.nextPhase) {
                             GameState.NIGHT -> {
-                                announceToAll {
-                                    appendInfoPrefix()
-                                    info("Die Nacht beginnt.")
-                                }
+                                engine.announceCurrentNightStep()
                             }
 
                             GameState.DAY -> {
-                                announceToAll {
-                                    appendInfoPrefix()
-                                    info("Der Tag beginnt.")
-                                }
-
-                                announceNightExecutionResults()
+                                messenger.announceNightExecutionResults(pendingNightExecutions.toList())
 
                                 executePendingNightExecutions()
                             }
 
-                            GameState.VOTE -> {
-                                announceToAll {
-                                    appendInfoPrefix()
-                                    info("Die Abstimmung beginnt.")
-                                }
-                            }
+                            GameState.VOTE -> Unit
 
-                            GameState.MAYOR_VOTE -> {
-                                announceToAll {
-                                    appendInfoPrefix()
-                                    info("Die Buergermeisterwahl beginnt.")
-                                }
-                            }
+                            GameState.MAYOR_VOTE -> Unit
                         }
                     }
                 }
             }
 
-            announceToAll {
-                appendSuccessPrefix()
-                success("Das Spiel wurde gestartet!")
-            }
+            messenger.announceGameStarted()
             players.forEach { (uuid, _) ->
                 uuid.toBukkitPlayer()?.let {
                     it.showTitle {
@@ -330,15 +341,14 @@ class WerewolfService(val gameId: String) {
         _leader = null
         _phase = GamePhase.IDLE
         clearWerewolfGlowing()
+        clearDoctorGlowing()
+        clearWitchGlowing()
 
         players.forEach { (uuid, _) ->
             uuid.toBukkitPlayer()?.removeFromWerewolfScoreboard()
         }
 
-        announceToAll {
-            appendErrorPrefix()
-            error("Das Spiel wurde gestoppt!")
-        }
+        messenger.announceGameStopped()
 
         pendingNightExecutions.clear()
         players.clear()
@@ -373,12 +383,88 @@ class WerewolfService(val gameId: String) {
         glowingTargetsByWerewolf[werewolf.uniqueId] = currentTargetId
     }
 
+    private fun makeWitchGlowing(witch: Player) {
+        val currentTargetId = engine.getWitchHealTarget(witch)
+        val previousTargetId = glowingTargetsByWitch[witch.uniqueId]
+
+        if (currentTargetId == previousTargetId) return
+
+        previousTargetId?.toBukkitPlayer()?.let { previousTarget ->
+            SurfGlowingApi.removeGlowing(previousTarget, witch)
+        }
+
+        if (currentTargetId == null) {
+            glowingTargetsByWitch.remove(witch.uniqueId)
+            return
+        }
+
+        val currentTarget = currentTargetId.toBukkitPlayer()
+        if (currentTarget == null) {
+            glowingTargetsByWitch.remove(witch.uniqueId)
+            return
+        }
+
+        SurfGlowingApi.makeGlowing(currentTarget, witch, NamedTextColor.DARK_PURPLE)
+        glowingTargetsByWitch[witch.uniqueId] = currentTargetId
+    }
+
+    private fun makeDoctorGlowing(doctor: Player) {
+        val currentTargetId = engine.getDoctorHealTarget(doctor)
+        val previousTargetId = glowingTargetsByDoctor[doctor.uniqueId]
+
+        if (currentTargetId == previousTargetId) return
+
+        previousTargetId?.toBukkitPlayer()?.let { previousTarget ->
+            SurfGlowingApi.removeGlowing(previousTarget, doctor)
+        }
+
+        if (currentTargetId == null) {
+            glowingTargetsByDoctor.remove(doctor.uniqueId)
+            return
+        }
+
+        val currentTarget = currentTargetId.toBukkitPlayer()
+        if (currentTarget == null) {
+            glowingTargetsByDoctor.remove(doctor.uniqueId)
+            return
+        }
+
+        SurfGlowingApi.makeGlowing(currentTarget, doctor, NamedTextColor.AQUA)
+        glowingTargetsByDoctor[doctor.uniqueId] = currentTargetId
+    }
+
     private suspend fun clearWerewolfGlowingNow() {
         if (glowingTargetsByWerewolf.isEmpty()) return
 
         val glowingTargets = glowingTargetsByWerewolf.toMap()
         glowingTargetsByWerewolf.clear()
         removeWerewolfGlowing(glowingTargets)
+    }
+
+    private suspend fun clearDoctorGlowingNow() {
+        if (glowingTargetsByDoctor.isEmpty()) return
+
+        val glowingTargets = glowingTargetsByDoctor.toMap()
+        glowingTargetsByDoctor.clear()
+        removeDoctorGlowing(glowingTargets)
+    }
+
+    private suspend fun clearWitchGlowingNow() {
+        if (glowingTargetsByWitch.isEmpty()) return
+
+        val glowingTargets = glowingTargetsByWitch.toMap()
+        glowingTargetsByWitch.clear()
+        removeWitchGlowing(glowingTargets)
+    }
+
+    private suspend fun clearBlindnessNow() {
+        getAlivePlayers().forEach { werewolfPlayer ->
+            val player = werewolfPlayer.uuid.toBukkitPlayer() ?: return@forEach
+
+            withContext(plugin.entityDispatcher(player)) {
+                player.removePotionEffect(PotionEffectType.BLINDNESS)
+            }
+        }
     }
 
     private fun clearWerewolfGlowing() {
@@ -392,6 +478,28 @@ class WerewolfService(val gameId: String) {
         }
     }
 
+    private fun clearDoctorGlowing() {
+        if (glowingTargetsByDoctor.isEmpty()) return
+
+        val glowingTargets = glowingTargetsByDoctor.toMap()
+        glowingTargetsByDoctor.clear()
+
+        plugin.launch {
+            removeDoctorGlowing(glowingTargets)
+        }
+    }
+
+    private fun clearWitchGlowing() {
+        if (glowingTargetsByWitch.isEmpty()) return
+
+        val glowingTargets = glowingTargetsByWitch.toMap()
+        glowingTargetsByWitch.clear()
+
+        plugin.launch {
+            removeWitchGlowing(glowingTargets)
+        }
+    }
+
     private suspend fun removeWerewolfGlowing(glowingTargets: Map<UUID, UUID>) {
         glowingTargets.forEach { (werewolfId, targetId) ->
             val werewolf = werewolfId.toBukkitPlayer() ?: return@forEach
@@ -399,6 +507,28 @@ class WerewolfService(val gameId: String) {
 
             withContext(plugin.entityDispatcher(werewolf)) {
                 SurfGlowingApi.removeGlowing(target, werewolf)
+            }
+        }
+    }
+
+    private suspend fun removeDoctorGlowing(glowingTargets: Map<UUID, UUID>) {
+        glowingTargets.forEach { (doctorId, targetId) ->
+            val doctor = doctorId.toBukkitPlayer() ?: return@forEach
+            val target = targetId.toBukkitPlayer() ?: return@forEach
+
+            withContext(plugin.entityDispatcher(doctor)) {
+                SurfGlowingApi.removeGlowing(target, doctor)
+            }
+        }
+    }
+
+    private suspend fun removeWitchGlowing(glowingTargets: Map<UUID, UUID>) {
+        glowingTargets.forEach { (witchId, targetId) ->
+            val witch = witchId.toBukkitPlayer() ?: return@forEach
+            val target = targetId.toBukkitPlayer() ?: return@forEach
+
+            withContext(plugin.entityDispatcher(witch)) {
+                SurfGlowingApi.removeGlowing(target, witch)
             }
         }
     }
@@ -438,28 +568,6 @@ class WerewolfService(val gameId: String) {
         return collectedPlayers.toList()
     }
 
-    private fun announceNightExecutionResults() {
-        val executedPlayers = pendingNightExecutions.toList()
-
-        announceToAll {
-            appendInfoPrefix()
-
-            if (executedPlayers.isEmpty()) {
-                info("In dieser Nacht ist niemand ausgeschieden.")
-            } else {
-                error(
-                    if (executedPlayers.size == 1) {
-                        "In der Nacht ausgeschieden:"
-                    } else {
-                        "In der Nacht ausgeschieden sind:"
-                    }
-                )
-                appendSpace()
-                variableValue(executedPlayers.joinToString(", ", transform = ::playerName))
-            }
-        }
-    }
-
     fun executePendingNightExecutions() {
         val executedPlayers = pendingNightExecutions.toList()
         pendingNightExecutions.clear()
@@ -493,9 +601,6 @@ class WerewolfService(val gameId: String) {
             }
         }
     }
-
-    private fun playerName(uuid: UUID): String =
-        players[uuid]?.name ?: uuid.toBukkitPlayer()?.name ?: "Unbekannt"
 
     fun getAlivePlayers() = players.values.filter { it.isAlive }
 

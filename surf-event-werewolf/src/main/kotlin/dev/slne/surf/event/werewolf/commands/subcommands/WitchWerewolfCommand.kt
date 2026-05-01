@@ -1,6 +1,7 @@
 package dev.slne.surf.event.werewolf.commands.subcommands
 
 import dev.jorel.commandapi.arguments.EntitySelectorArgument
+import dev.jorel.commandapi.kotlindsl.multiLiteralArgument
 import dev.jorel.commandapi.kotlindsl.playerExecutor
 import dev.jorel.commandapi.kotlindsl.subcommand
 import dev.slne.surf.api.core.messages.adventure.sendText
@@ -13,11 +14,12 @@ import dev.slne.surf.event.werewolf.util.WerwolfRoles
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 
-fun killWerewolfCommand() = subcommand("kill") {
-//    withAliases("eat")
+fun witchWerewolfCommand() = subcommand("witch") {
+    multiLiteralArgument("action", "heal", "kill")
     withArguments(EntitySelectorArgument.OnePlayer("player"))
 
     playerExecutor { commandSender, arguments ->
+        val action = (arguments.get("action") as String).lowercase()
         val targetPlayer = arguments.get("player") as Player
         val service = WerewolfGameManager.getGameForPlayer(commandSender.uuid())
 
@@ -37,8 +39,7 @@ fun killWerewolfCommand() = subcommand("kill") {
             return@playerExecutor
         }
 
-        val currentPhase = service.engine.currentPhase
-        if (currentPhase != GameState.NIGHT) {
+        if (service.engine.currentPhase != GameState.NIGHT) {
             commandSender.sendText {
                 appendErrorPrefix()
                 error("Du kannst diesen Befehl nur während der Nacht benutzen!")
@@ -46,62 +47,70 @@ fun killWerewolfCommand() = subcommand("kill") {
             return@playerExecutor
         }
 
-        val playerRole = service.getPlayerRole(commandSender.uuid())
-        if (playerRole != WerwolfRoles.WERWOLF) {
+        if (service.getPlayerRole(commandSender.uuid()) != WerwolfRoles.WITCH) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst niemanden töten oder essen!")
+                error("Nur die Hexe darf diesen Befehl benutzen.")
             }
             return@playerExecutor
         }
 
-        if (service.engine.currentNightStep != NightStep.WEREWOLVES) {
+        if (service.engine.currentNightStep != NightStep.WITCH) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Die Werwölfe sind gerade nicht am Zug.")
+                error("Die Hexe ist gerade nicht am Zug.")
             }
             return@playerExecutor
         }
 
-        if (targetPlayer == commandSender) {
-            commandSender.sendText {
-                appendErrorPrefix()
-                error("Du kannst dich nicht selber essen :)")
-            }
-            return@playerExecutor
-        }
-
-        val submitted = service.engine.submitNightAction(
-            NightAction.WerewolfKill(
+        val nightAction = when (action) {
+            "heal" -> NightAction.WitchHeal(
                 actor = commandSender.uuid(),
                 target = targetPlayer.uuid()
             )
-        )
 
+            "kill" -> NightAction.WitchPoison(
+                actor = commandSender.uuid(),
+                target = targetPlayer.uuid()
+            )
+
+            else -> {
+                commandSender.sendText {
+                    appendErrorPrefix()
+                    error("Nutze /werewolf witch <heal|kill> <spieler>.")
+                }
+                return@playerExecutor
+            }
+        }
+
+        val submitted = service.engine.submitNightAction(nightAction)
         if (!submitted) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Deine Nachtaktion konnte nicht gespeichert werden.")
+                error("Deine Hexen-Aktion konnte nicht gespeichert werden.")
             }
             return@playerExecutor
         }
 
         commandSender.sendText {
             appendSuccessPrefix()
-            success("Du hast den Dorfbewohner")
+            success(
+                when (nightAction) {
+                    is NightAction.WitchHeal -> "Du hast"
+                    is NightAction.WitchPoison -> "Du hast"
+                    else -> "Du hast"
+                }
+            )
             appendSpace()
             variableValue(targetPlayer.name, TextDecoration.BOLD)
             appendSpace()
-            success("als dein Opfer ausgewählt!")
+            success(
+                when (nightAction) {
+                    is NightAction.WitchHeal -> "mit deinem Heiltrank ausgewählt."
+                    is NightAction.WitchPoison -> "mit deinem Gifttrank ausgewählt."
+                    else -> "."
+                }
+            )
         }
-
-        service.announceToRole(
-            WerwolfRoles.WERWOLF,
-            true,
-            content = {
-                appendInfoPrefix()
-                info("")
-            }
-        )
     }
 }

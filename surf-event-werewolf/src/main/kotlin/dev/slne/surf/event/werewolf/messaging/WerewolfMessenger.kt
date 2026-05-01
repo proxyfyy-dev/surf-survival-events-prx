@@ -1,12 +1,14 @@
 package dev.slne.surf.event.werewolf.messaging
 
+import dev.slne.surf.api.core.messages.Colors
+import dev.slne.surf.api.core.messages.adventure.buildText
 import dev.slne.surf.api.core.messages.adventure.sendText
 import dev.slne.surf.api.core.messages.builder.SurfComponentBuilder
 import dev.slne.surf.event.werewolf.service.WerewolfService
-import dev.slne.surf.event.werewolf.util.GameState
-import dev.slne.surf.event.werewolf.util.VoteStanding
-import dev.slne.surf.event.werewolf.util.WerwolfRoles
-import dev.slne.surf.event.werewolf.util.toBukkitPlayer
+import dev.slne.surf.event.werewolf.util.*
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
+import net.kyori.adventure.text.format.TextDecoration
 import java.util.*
 
 class WerewolfMessenger(private val service: WerewolfService) {
@@ -45,6 +47,152 @@ class WerewolfMessenger(private val service: WerewolfService) {
             .forEach { player ->
                 player.uuid.toBukkitPlayer()?.sendText(content)
             }
+    }
+
+    fun announceMayorVotingStarted() {
+        announceToAlive {
+            appendInfoPrefix()
+            info("Die Bürgermeisterwahl hat begonnen.")
+            appendNewInfoPrefixedLine()
+            info("Die Stimme des Bürgermeisters zählt doppelt so viel.")
+            appendNewInfoPrefixedLine()
+            append(createVoteCommandSuggestion())
+        }
+    }
+
+    fun announceVillageVoteStarted() {
+        announceToAlive {
+            appendInfoPrefix()
+            info("Das Dorf hat eine Abstimmung gestartet!")
+            appendSpace()
+            info("Wähle jemanden, der ein Werwolf sein könnte, oder enthalte dich!")
+        }
+    }
+
+    fun announcePhaseStarted(state: GameState) {
+        when (state) {
+            GameState.NIGHT -> announceToAll {
+                appendInfoPrefix()
+                info("Die Nacht beginnt.")
+            }
+
+            GameState.DAY -> announceToAll {
+                appendInfoPrefix()
+                info("Der Tag beginnt.")
+            }
+
+            GameState.VOTE,
+            GameState.MAYOR_VOTE -> Unit
+        }
+    }
+
+    fun announceGameStarted() {
+        announceToAll {
+            appendSuccessPrefix()
+            success("Das Spiel wurde gestartet!")
+        }
+    }
+
+    fun announceGameStopped() {
+        announceToAll {
+            appendErrorPrefix()
+            error("Das Spiel wurde gestoppt!")
+        }
+    }
+
+    fun announceWinner(winner: GameOutcome) {
+        announceToAll {
+            appendSuccessPrefix()
+            success("Das Spiel ist beendet. Gewinner: $winner")
+        }
+    }
+
+    fun announceNightExecutionResults(executedPlayers: List<UUID>) {
+        announceToAll {
+            appendInfoPrefix()
+
+            if (executedPlayers.isEmpty()) {
+                info("In dieser Nacht ist niemand ausgeschieden.")
+            } else {
+                error(
+                    if (executedPlayers.size == 1) {
+                        "In der Nacht ausgeschieden:"
+                    } else {
+                        "In der Nacht ausgeschieden sind:"
+                    }
+                )
+                appendSpace()
+                variableValue(executedPlayers.joinToString(", ", transform = ::playerName))
+            }
+        }
+    }
+
+    fun announceNightStep(step: NightStep?) {
+        when (step) {
+            NightStep.AMOR -> announceToRole(WerwolfRoles.AMOR) {
+                appendInfoPrefix()
+                info("Du bist jetzt am Zug. Nutze /werewolf amor <spieler1> <spieler2>.")
+            }
+
+            NightStep.WEREWOLVES -> announceToRole(WerwolfRoles.WERWOLF) {
+                appendInfoPrefix()
+                info("Ihr seid jetzt am Zug. Nutzt /werewolf kill <spieler>.")
+            }
+
+            NightStep.SEER -> announceToRole(WerwolfRoles.SEER) {
+                appendInfoPrefix()
+                info("Du bist jetzt am Zug. Nutze /werewolf inspect <spieler>.")
+            }
+
+            NightStep.DOCTOR -> announceToRole(WerwolfRoles.DOCTOR) {
+                appendInfoPrefix()
+                info("Du bist jetzt am Zug. Nutze /werewolf doctor <spieler>.")
+                appendNewInfoPrefixedLine()
+                info("Du kannst dich selbst oder das aktuelle Werwolf-Opfer heilen.")
+                appendNewInfoPrefixedLine()
+                info("Das Werwolf-Opfer leuchtet für dich.")
+            }
+
+            NightStep.WITCH -> announceToRole(WerwolfRoles.WITCH) {
+                appendInfoPrefix()
+                info("Du bist jetzt am Zug. Nutze /werewolf witch <heal|kill> <spieler>.")
+                appendNewInfoPrefixedLine()
+                info("Das Opfer der Werwölfe leuchtet für dich.")
+            }
+
+            NightStep.RESOLVE,
+            null -> Unit
+        }
+    }
+
+    fun announceLovers(lovers: Pair<UUID, UUID>?) {
+        if (lovers == null) return
+
+        val (firstId, secondId) = lovers
+        val firstName = playerName(firstId)
+        val secondName = playerName(secondId)
+
+        announceToPlayer(firstId) {
+            appendSuccessPrefix()
+            success("Du bist nun ein Liebespaar mit")
+            appendSpace()
+            variableValue(secondName)
+            appendSpace()
+            success(".")
+            appendNewInfoPrefixedLine()
+            info("Wenn einer von euch stirbt, stirbt der andere auch.")
+        }
+
+        announceToPlayer(secondId) {
+            appendSuccessPrefix()
+            success("Du bist nun ein Liebespaar mit")
+            appendSpace()
+            variableValue(firstName)
+            appendSpace()
+            success(".")
+            appendNewInfoPrefixedLine()
+            info("Wenn einer von euch stirbt, stirbt der andere auch.")
+        }
     }
 
     fun announceVotings(
@@ -129,6 +277,12 @@ class WerewolfMessenger(private val service: WerewolfService) {
 
             content()
         }
+    }
+
+    private fun createVoteCommandSuggestion() = buildText {
+        text("HIER", Colors.VARIABLE_VALUE, TextDecoration.UNDERLINED)
+        hoverEvent(HoverEvent.showText(buildText { info("Klicke hier, um den Command in den Chat einzufügen!") }))
+        clickEvent(ClickEvent.suggestCommand("/werewolf vote "))
     }
 
     private fun playerName(uuid: UUID): String =

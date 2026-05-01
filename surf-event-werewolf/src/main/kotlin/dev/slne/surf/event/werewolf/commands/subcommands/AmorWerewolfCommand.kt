@@ -8,6 +8,7 @@ import dev.slne.surf.api.core.messages.adventure.uuid
 import dev.slne.surf.event.werewolf.service.WerewolfGameManager
 import dev.slne.surf.event.werewolf.util.GameState
 import dev.slne.surf.event.werewolf.util.NightAction
+import dev.slne.surf.event.werewolf.util.NightStep
 import dev.slne.surf.event.werewolf.util.WerwolfRoles
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
@@ -32,7 +33,7 @@ fun amorWerewolfCommand() = subcommand("amor") {
         if (service.isPhaseTransitioning) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Der Phasenwechsel laeuft gerade noch. Warte einen kurzen Moment.")
+                error("Der Phasenwechsel läuft gerade noch. Warte einen kurzen Moment.")
             }
             return@playerExecutor
         }
@@ -40,7 +41,7 @@ fun amorWerewolfCommand() = subcommand("amor") {
         if (service.engine.currentPhase != GameState.NIGHT) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst diesen Befehl nur waehrend der Nacht benutzen!")
+                error("Du kannst diesen Befehl nur während der Nacht benutzen!")
             }
             return@playerExecutor
         }
@@ -53,10 +54,18 @@ fun amorWerewolfCommand() = subcommand("amor") {
             return@playerExecutor
         }
 
+        if (service.engine.currentNightStep != NightStep.AMOR) {
+            commandSender.sendText {
+                appendErrorPrefix()
+                error("Amor ist gerade nicht am Zug.")
+            }
+            return@playerExecutor
+        }
+
         if (firstPlayer.uniqueId == secondPlayer.uniqueId) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du musst zwei verschiedene Spieler auswaehlen.")
+                error("Du musst zwei verschiedene Spieler auswählen.")
             }
             return@playerExecutor
         }

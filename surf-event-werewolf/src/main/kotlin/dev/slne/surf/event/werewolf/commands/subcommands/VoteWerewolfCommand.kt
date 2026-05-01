@@ -27,7 +27,7 @@ fun voteWerewolfCommand() = subcommand("vote") {
         if (service.isPhaseTransitioning) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Der Phasenwechsel laeuft gerade noch. Warte einen kurzen Moment.")
+                error("Der Phasenwechsel läuft gerade noch. Warte einen kurzen Moment.")
             }
             return@playerExecutor
         }
@@ -36,7 +36,7 @@ fun voteWerewolfCommand() = subcommand("vote") {
         if (currentPhase != GameState.MAYOR_VOTE && currentPhase != GameState.VOTE) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst diesen Befehl nur wahrend einer Voting-Phase benutzen!")
+                error("Du kannst diesen Befehl nur während einer Voting-Phase benutzen!")
             }
             return@playerExecutor
         }
@@ -47,14 +47,14 @@ fun voteWerewolfCommand() = subcommand("vote") {
                 if (!service.engine.submitMayorVote(commandSender.uuid(), targetPlayer.uuid())) {
                     commandSender.sendText {
                         appendErrorPrefix()
-                        error("Die Bürgermeisterwahl ist aktuell nicht verfügbar oder das Ziel ist ungueltig.")
+                        error("Die Bürgermeisterwahl ist aktuell nicht verfügbar oder das Ziel ist ungültig.")
                     }
                     return@playerExecutor
                 }
 
                 commandSender.sendText {
                     appendSuccessPrefix()
-                    success("Du hast erfolgreich fur")
+                    success("Du hast erfolgreich für")
                     appendSpace()
                     variableValue(targetPlayer.name, TextDecoration.BOLD)
                     appendSpace()
@@ -67,14 +67,14 @@ fun voteWerewolfCommand() = subcommand("vote") {
                 if (!service.engine.submitVote(commandSender.uuid(), targetPlayer.uuid())) {
                     commandSender.sendText {
                         appendErrorPrefix()
-                        error("Die Abstimmung ist aktuell nicht verfügbar oder das Ziel ist ungueltig.")
+                        error("Die Abstimmung ist aktuell nicht verfügbar oder das Ziel ist ungültig.")
                     }
                     return@playerExecutor
                 }
 
                 commandSender.sendText {
                     appendSuccessPrefix()
-                    success("Du hast erfolgreich fur")
+                    success("Du hast erfolgreich für")
                     appendSpace()
                     variableValue(targetPlayer.name)
                     appendSpace()

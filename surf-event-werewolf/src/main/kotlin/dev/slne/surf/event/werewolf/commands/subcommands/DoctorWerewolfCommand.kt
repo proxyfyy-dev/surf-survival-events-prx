@@ -13,8 +13,7 @@ import dev.slne.surf.event.werewolf.util.WerwolfRoles
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 
-fun killWerewolfCommand() = subcommand("kill") {
-//    withAliases("eat")
+fun doctorWerewolfCommand() = subcommand("doctor") {
     withArguments(EntitySelectorArgument.OnePlayer("player"))
 
     playerExecutor { commandSender, arguments ->
@@ -37,8 +36,7 @@ fun killWerewolfCommand() = subcommand("kill") {
             return@playerExecutor
         }
 
-        val currentPhase = service.engine.currentPhase
-        if (currentPhase != GameState.NIGHT) {
+        if (service.engine.currentPhase != GameState.NIGHT) {
             commandSender.sendText {
                 appendErrorPrefix()
                 error("Du kannst diesen Befehl nur während der Nacht benutzen!")
@@ -46,33 +44,24 @@ fun killWerewolfCommand() = subcommand("kill") {
             return@playerExecutor
         }
 
-        val playerRole = service.getPlayerRole(commandSender.uuid())
-        if (playerRole != WerwolfRoles.WERWOLF) {
+        if (service.getPlayerRole(commandSender.uuid()) != WerwolfRoles.DOCTOR) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Du kannst niemanden töten oder essen!")
+                error("Nur der Heiler darf diesen Befehl benutzen.")
             }
             return@playerExecutor
         }
 
-        if (service.engine.currentNightStep != NightStep.WEREWOLVES) {
+        if (service.engine.currentNightStep != NightStep.DOCTOR) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Die Werwölfe sind gerade nicht am Zug.")
-            }
-            return@playerExecutor
-        }
-
-        if (targetPlayer == commandSender) {
-            commandSender.sendText {
-                appendErrorPrefix()
-                error("Du kannst dich nicht selber essen :)")
+                error("Der Heiler ist gerade nicht am Zug.")
             }
             return@playerExecutor
         }
 
         val submitted = service.engine.submitNightAction(
-            NightAction.WerewolfKill(
+            NightAction.DoctorProtect(
                 actor = commandSender.uuid(),
                 target = targetPlayer.uuid()
             )
@@ -81,27 +70,18 @@ fun killWerewolfCommand() = subcommand("kill") {
         if (!submitted) {
             commandSender.sendText {
                 appendErrorPrefix()
-                error("Deine Nachtaktion konnte nicht gespeichert werden.")
+                error("Du kannst nur dich selbst oder das aktuelle Werwolf-Opfer heilen.")
             }
             return@playerExecutor
         }
 
         commandSender.sendText {
             appendSuccessPrefix()
-            success("Du hast den Dorfbewohner")
+            success("Du hast")
             appendSpace()
             variableValue(targetPlayer.name, TextDecoration.BOLD)
             appendSpace()
-            success("als dein Opfer ausgewählt!")
+            success("als Heilungsziel ausgewählt.")
         }
-
-        service.announceToRole(
-            WerwolfRoles.WERWOLF,
-            true,
-            content = {
-                appendInfoPrefix()
-                info("")
-            }
-        )
     }
 }

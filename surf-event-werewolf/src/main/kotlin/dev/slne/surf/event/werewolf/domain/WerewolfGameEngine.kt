@@ -1,14 +1,11 @@
 package dev.slne.surf.event.werewolf.domain
 
-import dev.slne.surf.api.core.messages.Colors
-import dev.slne.surf.api.core.messages.adventure.buildText
 import dev.slne.surf.event.werewolf.domain.roleActions.AmorActions
+import dev.slne.surf.event.werewolf.domain.roleActions.SeerActions
+import dev.slne.surf.event.werewolf.domain.roleActions.WitchActions
 import dev.slne.surf.event.werewolf.messaging.WerewolfMessenger
 import dev.slne.surf.event.werewolf.service.WerewolfService
 import dev.slne.surf.event.werewolf.util.*
-import net.kyori.adventure.text.event.ClickEvent
-import net.kyori.adventure.text.event.HoverEvent
-import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 import java.util.*
 import kotlin.time.Duration
@@ -20,7 +17,8 @@ class WerewolfGameEngine(
     private var roundState = GameRoundState.initial()
 
     private val messenger = WerewolfMessenger(service)
-    private fun nightResolver() = NightResolver(service.players, roundState.dayNumber)
+    private fun nightResolver() = NightResolver(service.players, roundState.dayNumber, roundState.werewolfTarget)
+    private fun nightStepCoordinator() = NightStepCoordinator(service.players, roundState.dayNumber)
 
     val currentPhase: GameState
         get() = roundState.phase
@@ -28,10 +26,14 @@ class WerewolfGameEngine(
     val phaseRemainingSeconds: Duration
         get() = roundState.phaseRemainingSeconds
 
+    val currentNightStep: NightStep?
+        get() = roundState.nightStep
+
     fun startGameEngine(): PhaseAdvanceResult {
         roundState = GameRoundState(
             phase = GameState.DAY,
             dayNumber = 1,
+            nightStep = null,
             nightActions = mutableListOf(),
             votes = mutableMapOf(),
             phaseRemainingSeconds = GameState.DAY.time,
@@ -43,6 +45,15 @@ class WerewolfGameEngine(
     fun tick(): PhaseAdvanceResult? {
         if (roundState.phaseRemainingSeconds <= 1.seconds) {
             roundState = roundState.copy(phaseRemainingSeconds = 0.seconds)
+
+            if (roundState.phase == GameState.NIGHT &&
+                roundState.nightStep != null &&
+                roundState.nightStep != NightStep.RESOLVE
+            ) {
+                advanceNightStepOnTimeout()
+                return null
+            }
+
             return advancePhase()
         }
 
@@ -145,18 +156,11 @@ class WerewolfGameEngine(
         roundState = roundState.copy(
             phase = GameState.MAYOR_VOTE,
             phaseRemainingSeconds = GameState.MAYOR_VOTE.time,
-            mayorVotes = mutableMapOf()
+            mayorVotes = mutableMapOf(),
+            nightStep = null
         )
 
-        service.announceToAlive {
-            appendInfoPrefix()
-            info("Die Bürgermeisterwahl hat begonnen.")
-            appendNewInfoPrefixedLine()
-            info("Die Stimme des Bürgermeisters zahlt doppelt so viel.")
-            appendNewInfoPrefixedLine()
-            append(createClickable())
-        }
-
+        messenger.announceMayorVotingStarted()
         service.setGameState(GameState.MAYOR_VOTE)
     }
 
@@ -164,16 +168,11 @@ class WerewolfGameEngine(
         roundState = roundState.copy(
             phase = GameState.VOTE,
             phaseRemainingSeconds = GameState.VOTE.time,
-            votes = mutableMapOf()
+            votes = mutableMapOf(),
+            nightStep = null
         )
 
-        service.announceToAlive {
-            appendInfoPrefix()
-            info("Das Dorf hat eine Abstimmung gestartet!")
-            appendSpace()
-            info("Wähle jemanden, der ein Werewolf sein konnte, oder enthalte dich!")
-        }
-
+        messenger.announceVillageVoteStarted()
         service.setGameState(GameState.VOTE)
     }
 
@@ -181,11 +180,13 @@ class WerewolfGameEngine(
         roundState = roundState.copy(
             phase = GameState.NIGHT,
             phaseRemainingSeconds = GameState.NIGHT.time,
+            nightStep = null,
             protectedPlayer = null,
             werewolfTarget = null,
             nightActions = mutableListOf()
         )
 
+        setNightStep(nightStepCoordinator().firstStep(), announce = false)
         service.setGameState(GameState.NIGHT)
     }
 
@@ -194,6 +195,7 @@ class WerewolfGameEngine(
             phase = GameState.DAY,
             phaseRemainingSeconds = GameState.DAY.time,
             dayNumber = if (increaseDayNumber) roundState.dayNumber + 1 else roundState.dayNumber,
+            nightStep = null,
             votes = mutableMapOf(),
             protectedPlayer = null,
             werewolfTarget = null,
@@ -247,42 +249,20 @@ class WerewolfGameEngine(
         return true
     }
 
-    private fun calculateVoteStandings(
-        expectedPhase: GameState,
-        votes: Map<UUID, UUID>,
-        weightSelector: (WerewolfPlayer) -> Int,
-    ): List<VoteStanding> {
-        if (roundState.phase != expectedPhase) return emptyList()
-        if (votes.isEmpty()) return emptyList()
-
-        val counts = mutableMapOf<UUID, Int>()
-
-        for ((voter, target) in votes) {
-            val voterPlayer = service.players[voter] ?: continue
-            if (!voterPlayer.isAlive) continue
-            if (service.players[target]?.isAlive != true) continue
-
-            counts[target] = (counts[target] ?: 0) + weightSelector(voterPlayer)
-        }
-
-        return counts.entries
-            .sortedWith(
-                compareByDescending<Map.Entry<UUID, Int>> { it.value }
-                    .thenBy { service.players[it.key]?.name ?: "~" }
-            )
-            .map { VoteStanding(it.key, it.value) }
-    }
-
     private fun calculateMayorVoteStandings(): List<VoteStanding> {
-        return calculateVoteStandings(
-            expectedPhase = GameState.MAYOR_VOTE,
+        if (roundState.phase != GameState.MAYOR_VOTE) return emptyList()
+
+        return VoteResolver.calculateStandings(
+            players = service.players,
             votes = roundState.mayorVotes
         ) { 1 }
     }
 
     private fun calculateVoteStandings(): List<VoteStanding> {
-        return calculateVoteStandings(
-            expectedPhase = GameState.VOTE,
+        if (roundState.phase != GameState.VOTE) return emptyList()
+
+        return VoteResolver.calculateStandings(
+            players = service.players,
             votes = roundState.votes
         ) { voterPlayer ->
             if (voterPlayer.role == WerwolfRoles.MAYOR) 2 else 1
@@ -293,11 +273,20 @@ class WerewolfGameEngine(
         if (roundState.phase != GameState.NIGHT) return false
         val actor = service.players[action.actor] ?: return false
         if (!actor.isAlive) return false
+        if (!nightStepCoordinator().isActionAllowed(roundState.nightStep, action)) return false
         if (!nightResolver().isValid(action, actor.role)) return false
 
         replaceNightAction(action)
+        advanceNightStepIfReady()
 
         return true
+    }
+
+    fun inspectWithSeer(actor: UUID, target: UUID): WerwolfRoles? {
+        val action = NightAction.SeerInspect(actor = actor, target = target)
+        if (!submitNightAction(action)) return null
+
+        return SeerActions.inspectTarget(action, service.players)
     }
 
     fun resolveNight(): NightResolutionResult {
@@ -305,7 +294,8 @@ class WerewolfGameEngine(
 
         val resolution = nightResolver().resolve(roundState.nightActions)
         AmorActions.apply(service.players, resolution.lovers)
-        announceLovers(resolution.lovers)
+        WitchActions.apply(service.players, roundState.nightActions)
+        messenger.announceLovers(resolution.lovers)
         resolution.eliminatedPlayers.forEach(service::executePlayer)
 
         roundState = roundState.copy(
@@ -317,6 +307,15 @@ class WerewolfGameEngine(
         return resolution
     }
 
+    fun announceCurrentNightStep() {
+        messenger.announceNightStep(roundState.nightStep)
+    }
+
+    fun canRoleActAtNight(role: WerwolfRoles): Boolean {
+        if (roundState.phase != GameState.NIGHT) return false
+        return roundState.nightStep?.activeRole == role
+    }
+
     fun getWerewolfTargetFromLineOfSight(player: Player): UUID? {
         if (roundState.phase != GameState.NIGHT) return null
         if (service.getPlayerRole(player.uniqueId) != WerwolfRoles.WERWOLF) return null
@@ -325,6 +324,30 @@ class WerewolfGameEngine(
         val targetPlayer = player.getTargetEntity(50, true) as? Player ?: return null
         val targetId = targetPlayer.uniqueId
 
+        if (service.players[targetId]?.isAlive != true) return null
+
+        return targetId
+    }
+
+    fun getWitchHealTarget(player: Player): UUID? {
+        if (roundState.phase != GameState.NIGHT) return null
+        if (roundState.nightStep != NightStep.WITCH) return null
+        if (service.getPlayerRole(player.uniqueId) != WerwolfRoles.WITCH) return null
+        if (service.players[player.uniqueId]?.isAlive != true) return null
+
+        val targetId = roundState.werewolfTarget ?: return null
+        if (service.players[targetId]?.isAlive != true) return null
+
+        return targetId
+    }
+
+    fun getDoctorHealTarget(player: Player): UUID? {
+        if (roundState.phase != GameState.NIGHT) return null
+        if (roundState.nightStep != NightStep.DOCTOR) return null
+        if (service.getPlayerRole(player.uniqueId) != WerwolfRoles.DOCTOR) return null
+        if (service.players[player.uniqueId]?.isAlive != true) return null
+
+        val targetId = roundState.werewolfTarget ?: return null
         if (service.players[targetId]?.isAlive != true) return null
 
         return targetId
@@ -360,44 +383,51 @@ class WerewolfGameEngine(
         roundState.nightActions.add(newAction)
     }
 
+    private fun advanceNightStepIfReady() {
+        if (roundState.nightStep == NightStep.WEREWOLVES) {
+            roundState = roundState.copy(
+                werewolfTarget = nightResolver().resolveWerewolfTarget(roundState.nightActions)
+            )
+        }
+
+        val nextStep = nightStepCoordinator().nextStep(
+            currentStep = roundState.nightStep,
+            actions = roundState.nightActions
+        ) ?: return
+
+        setNightStep(nextStep)
+    }
+
+    private fun advanceNightStepOnTimeout() {
+        if (roundState.nightStep == NightStep.WEREWOLVES) {
+            roundState = roundState.copy(
+                werewolfTarget = nightResolver().resolveWerewolfTarget(roundState.nightActions)
+            )
+        }
+
+        val nextStep = nightStepCoordinator().nextStepAfterTimeout(roundState.nightStep)
+            ?: NightStep.RESOLVE
+
+        setNightStep(nextStep)
+    }
+
+    private fun setNightStep(step: NightStep, announce: Boolean = true) {
+        roundState = roundState.copy(
+            nightStep = step,
+            phaseRemainingSeconds = if (step == NightStep.RESOLVE) {
+                1.seconds
+            } else {
+                GameState.NIGHT.time
+            }
+        )
+
+        if (announce) {
+            messenger.announceNightStep(step)
+        }
+    }
+
     private fun isSameNightActionSlot(existingAction: NightAction, newAction: NightAction): Boolean {
         return existingAction.actor == newAction.actor &&
                 existingAction::class == newAction::class
-    }
-
-    private fun announceLovers(lovers: Pair<UUID, UUID>?) {
-        if (lovers == null) return
-
-        val (firstId, secondId) = lovers
-        val firstName = service.players[firstId]?.name ?: "Unbekannt"
-        val secondName = service.players[secondId]?.name ?: "Unbekannt"
-
-        messenger.announceToPlayer(firstId) {
-            appendSuccessPrefix()
-            success("Du bist nun ein Liebespaar mit")
-            appendSpace()
-            variableValue(secondName)
-            appendSpace()
-            success(".")
-            appendNewInfoPrefixedLine()
-            info("Wenn einer von euch stirbt, stirbt der andere auch.")
-        }
-
-        messenger.announceToPlayer(secondId) {
-            appendSuccessPrefix()
-            success("Du bist nun ein Liebespaar mit")
-            appendSpace()
-            variableValue(firstName)
-            appendSpace()
-            success(".")
-            appendNewInfoPrefixedLine()
-            info("Wenn einer von euch stirbt, stirbt der andere auch.")
-        }
-    }
-
-    private fun createClickable() = buildText {
-        text("HIER", Colors.VARIABLE_VALUE, TextDecoration.UNDERLINED)
-        hoverEvent(HoverEvent.showText(buildText { info("Klicke hier, um den Command in den Chat einzufügen!") }))
-        clickEvent(ClickEvent.suggestCommand("/werewolf vote "))
     }
 }

@@ -14,6 +14,9 @@ fun werewolfCommand() = commandAPICommand("werewolf"){
     subcommand(voteWerewolfCommand())
     subcommand(killWerewolfCommand())
     subcommand(amorWerewolfCommand())
+    subcommand(inspectWerewolfCommand())
+    subcommand(doctorWerewolfCommand())
+    subcommand(witchWerewolfCommand())
 
     playerExecutor { player, arguments ->
 
