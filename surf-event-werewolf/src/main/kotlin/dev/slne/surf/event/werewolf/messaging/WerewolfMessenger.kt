@@ -127,6 +127,36 @@ class WerewolfMessenger(private val service: WerewolfService) {
         }
     }
 
+    fun announcePriestHolyWater(priestId: UUID, targetId: UUID, hitWerewolf: Boolean) {
+        val priestName = playerName(priestId)
+        val targetName = playerName(targetId)
+
+        announceToAll {
+            appendInfoPrefix()
+            variableValue(priestName)
+            appendSpace()
+            info("hat Weihwasser auf")
+            appendSpace()
+            variableValue(targetName)
+            success(".")
+            appendSpace()
+
+            if (hitWerewolf) {
+                variableValue(targetName)
+                appendSpace()
+                error("war ein Werwolf und ist gestorben.")
+            } else {
+                variableValue(targetName)
+                appendSpace()
+                info("war kein Werwolf.")
+                appendSpace()
+                variableValue(priestName)
+                appendSpace()
+                error("ist gestorben.")
+            }
+        }
+    }
+
     fun announceNightStep(step: NightStep?) {
         when (step) {
             NightStep.AMOR -> announceToRole(WerwolfRoles.AMOR) {
@@ -137,6 +167,11 @@ class WerewolfMessenger(private val service: WerewolfService) {
             NightStep.WEREWOLVES -> announceToRole(WerwolfRoles.WERWOLF) {
                 appendInfoPrefix()
                 info("Ihr seid jetzt am Zug. Nutzt /werewolf kill <spieler>.")
+            }
+
+            NightStep.GIRL -> announceToRole(WerwolfRoles.GIRL) {
+                appendInfoPrefix()
+                info("Du bist jetzt am Zug. Nutze /werewolf girl, wenn du die Augen öffnen willst.")
             }
 
             NightStep.SEER -> announceToRole(WerwolfRoles.SEER) {
@@ -158,6 +193,11 @@ class WerewolfMessenger(private val service: WerewolfService) {
                 info("Du bist jetzt am Zug. Nutze /werewolf witch <heal|kill> <spieler>.")
                 appendNewInfoPrefixedLine()
                 info("Das Opfer der Werwölfe leuchtet für dich.")
+            }
+
+            NightStep.SERIAL_KILLER -> announceToRole(WerwolfRoles.SERIAL_KILLER) {
+                appendInfoPrefix()
+                info("Du bist jetzt am Zug. Nutze /werewolf serialkill <spieler>.")
             }
 
             NightStep.RESOLVE,

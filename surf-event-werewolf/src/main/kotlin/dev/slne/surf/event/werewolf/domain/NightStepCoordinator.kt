@@ -70,9 +70,11 @@ internal class NightStepCoordinator(
         return when (step) {
             NightStep.AMOR -> dayNumber == 1 && hasAliveRole(WerwolfRoles.AMOR)
             NightStep.WEREWOLVES -> hasAliveRole(WerwolfRoles.WERWOLF)
+            NightStep.GIRL -> hasAliveRole(WerwolfRoles.GIRL)
             NightStep.SEER -> hasAliveRole(WerwolfRoles.SEER)
             NightStep.DOCTOR -> hasAliveRole(WerwolfRoles.DOCTOR)
             NightStep.WITCH -> hasAliveRole(WerwolfRoles.WITCH)
+            NightStep.SERIAL_KILLER -> hasAliveRole(WerwolfRoles.SERIAL_KILLER)
             NightStep.RESOLVE -> true
         }
     }
@@ -85,13 +87,13 @@ internal class NightStepCoordinator(
         return when (action) {
             is NightAction.AmorLink -> NightStep.AMOR
             is NightAction.WerewolfKill -> NightStep.WEREWOLVES
+            is NightAction.GirlPeek -> NightStep.GIRL
             is NightAction.SeerInspect -> NightStep.SEER
             is NightAction.DoctorProtect -> NightStep.DOCTOR
             is NightAction.WitchHeal,
             is NightAction.WitchPoison -> NightStep.WITCH
 
-            is NightAction.PriestWater,
-            is NightAction.SerialKillerKill -> NightStep.RESOLVE
+            is NightAction.SerialKillerKill -> NightStep.SERIAL_KILLER
         }
     }
 

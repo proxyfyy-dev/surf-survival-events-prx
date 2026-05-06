@@ -280,8 +280,7 @@ class WerewolfService(val gameId: String) {
 
                     if (advanceResult != null) {
                         if (advanceResult.winner != null) {
-                            messenger.announceWinner(advanceResult.winner)
-                            stop()
+                            finishGame(advanceResult.winner)
                             return@launch
                         }
 
@@ -333,6 +332,12 @@ class WerewolfService(val gameId: String) {
             _phase = GamePhase.IDLE
             return WerewolfStartResult.Error(e.message ?: "Unbekannter Fehler beim Starten")
         }
+    }
+
+    fun finishGame(winner: GameOutcome) {
+        messenger.announceWinner(winner)
+        stop()
+        WerewolfGameManager.removeGame(gameId)
     }
 
     fun stop() {

@@ -8,6 +8,7 @@ data class WerewolfPlayer(
     var role: WerwolfRoles = WerwolfRoles.VILLAGER,
     var isAlive: Boolean = true,
     var inLoveWith: UUID? = null,
+    var hasPriestHolyWater: Boolean = true,
     var hasWitchHealPotion: Boolean = true,
     var hasWitchPoisonPotion: Boolean = true,
     val votes: MutableSet<UUID> = mutableSetOf(),

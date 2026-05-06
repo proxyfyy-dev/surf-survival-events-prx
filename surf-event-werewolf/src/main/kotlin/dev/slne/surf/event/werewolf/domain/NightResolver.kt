@@ -1,9 +1,6 @@
 package dev.slne.surf.event.werewolf.domain
 
-import dev.slne.surf.event.werewolf.domain.roleActions.AmorActions
-import dev.slne.surf.event.werewolf.domain.roleActions.DoctorActions
-import dev.slne.surf.event.werewolf.domain.roleActions.SeerActions
-import dev.slne.surf.event.werewolf.domain.roleActions.WitchActions
+import dev.slne.surf.event.werewolf.domain.roleActions.*
 import dev.slne.surf.event.werewolf.util.NightAction
 import dev.slne.surf.event.werewolf.util.NightResolutionResult
 import dev.slne.surf.event.werewolf.util.WerewolfPlayer
@@ -22,6 +19,9 @@ internal class NightResolver(
                     isValidLivingTarget(action.target) &&
                     action.actor != action.target
 
+            is NightAction.GirlPeek -> actorRole == WerwolfRoles.GIRL &&
+                    GirlActions.isValid(action, players)
+
             is NightAction.SeerInspect -> actorRole == WerwolfRoles.SEER &&
                     SeerActions.isValid(action, players)
 
@@ -35,29 +35,35 @@ internal class NightResolver(
             is NightAction.AmorLink -> actorRole == WerwolfRoles.AMOR &&
                     AmorActions.isValid(action, players, dayNumber)
 
-            is NightAction.PriestWater -> actorRole == WerwolfRoles.PRIEST &&
-                    isValidLivingTarget(action.target) &&
-                    action.actor != action.target
-
             is NightAction.SerialKillerKill -> actorRole == WerwolfRoles.SERIAL_KILLER &&
-                    isValidLivingTarget(action.target) &&
-                    action.actor != action.target
+                    SerialKillerActions.isValid(action, players)
         }
     }
 
     fun resolve(actions: List<NightAction>): NightResolutionResult {
         val lovers = AmorActions.resolve(actions)
         val resolvedWerewolfTarget = resolveWerewolfTarget(actions)
+        val caughtGirls = GirlActions.resolveCaughtGirls(actions)
+        val serialKillerTarget = SerialKillerActions.resolveTarget(actions)
         val doctorProtectedPlayer = DoctorActions.resolveTarget(actions)
         val witchHealTarget = WitchActions.resolveHealTarget(actions)
         val witchPoisonTarget = WitchActions.resolvePoisonTarget(actions)
+        val protectedPlayers = setOfNotNull(doctorProtectedPlayer, witchHealTarget)
         val eliminatedPlayers = linkedSetOf<UUID>()
 
         if (resolvedWerewolfTarget != null &&
-            resolvedWerewolfTarget != doctorProtectedPlayer &&
-            resolvedWerewolfTarget != witchHealTarget
+            resolvedWerewolfTarget !in protectedPlayers &&
+            players[resolvedWerewolfTarget]?.role != WerwolfRoles.SERIAL_KILLER
         ) {
             eliminatedPlayers.add(resolvedWerewolfTarget)
+        }
+
+        eliminatedPlayers.addAll(caughtGirls)
+
+        if (serialKillerTarget != null &&
+            serialKillerTarget !in protectedPlayers
+        ) {
+            eliminatedPlayers.add(serialKillerTarget)
         }
 
         if (witchPoisonTarget != null) {

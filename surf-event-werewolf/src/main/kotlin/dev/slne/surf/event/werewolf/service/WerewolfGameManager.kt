@@ -1,6 +1,6 @@
 package dev.slne.surf.event.werewolf.service
 
-import java.util.UUID
+import java.util.*
 
 object WerewolfGameManager {
 
@@ -26,8 +26,7 @@ object WerewolfGameManager {
     }
 
     fun removeGame(gameId: String) {
-        val game = games[gameId] ?: return
-        game.players.keys.forEach { playerToGame.remove(it) }
+        playerToGame.entries.removeIf { it.value == gameId }
         games.remove(gameId)
     }
 

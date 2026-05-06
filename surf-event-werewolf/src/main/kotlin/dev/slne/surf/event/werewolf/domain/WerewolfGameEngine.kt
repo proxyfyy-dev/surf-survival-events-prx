@@ -1,8 +1,6 @@
 package dev.slne.surf.event.werewolf.domain
 
-import dev.slne.surf.event.werewolf.domain.roleActions.AmorActions
-import dev.slne.surf.event.werewolf.domain.roleActions.SeerActions
-import dev.slne.surf.event.werewolf.domain.roleActions.WitchActions
+import dev.slne.surf.event.werewolf.domain.roleActions.*
 import dev.slne.surf.event.werewolf.messaging.WerewolfMessenger
 import dev.slne.surf.event.werewolf.service.WerewolfService
 import dev.slne.surf.event.werewolf.util.*
@@ -289,6 +287,50 @@ class WerewolfGameEngine(
         return SeerActions.inspectTarget(action, service.players)
     }
 
+    fun peekWithGirl(actor: UUID): GirlPeekOutcome? {
+        if (roundState.phase != GameState.NIGHT) return null
+        if (roundState.nightStep != NightStep.GIRL) return null
+        if (service.players[actor]?.role != WerwolfRoles.GIRL) return null
+        if (service.players[actor]?.isAlive != true) return null
+
+        val outcome = GirlActions.rollOutcome(service.players)
+        val action = NightAction.GirlPeek(actor = actor, outcome = outcome)
+        if (!submitNightAction(action)) return null
+
+        return outcome
+    }
+
+    fun usePriestHolyWater(actor: UUID, target: UUID): PriestActionResult {
+        if (roundState.phase != GameState.DAY) return PriestActionResult.WrongPhase
+
+        val actorPlayer = service.players[actor] ?: return PriestActionResult.InvalidActor
+        val targetPlayer = service.players[target] ?: return PriestActionResult.InvalidTarget
+
+        if (actorPlayer.role != WerwolfRoles.PRIEST || !actorPlayer.isAlive) {
+            return PriestActionResult.InvalidActor
+        }
+
+        if (!actorPlayer.hasPriestHolyWater) {
+            return PriestActionResult.AlreadyUsed
+        }
+
+        if (!PriestActions.isValid(actorPlayer, targetPlayer)) {
+            return PriestActionResult.InvalidTarget
+        }
+
+        actorPlayer.hasPriestHolyWater = false
+
+        val resolution = PriestActions.resolve(actor, target, service.players)
+        resolution.eliminatedPlayers.forEach(service::executePlayer)
+        messenger.announcePriestHolyWater(actor, target, resolution.hitWerewolf)
+
+        return PriestActionResult.Success(
+            hitWerewolf = resolution.hitWerewolf,
+            eliminatedPlayers = resolution.eliminatedPlayers,
+            winner = checkWinCondition()
+        )
+    }
+
     fun resolveNight(): NightResolutionResult {
         if (roundState.phase != GameState.NIGHT) return NightResolutionResult()
 
@@ -356,6 +398,12 @@ class WerewolfGameEngine(
     fun checkWinCondition(): GameOutcome? {
         val alivePlayers = service.players.values.filter { it.isAlive }
         if (hasAliveLoverPair(alivePlayers)) return GameOutcome.LoversWin
+
+        val aliveSerialKillers = alivePlayers.count { it.role == WerwolfRoles.SERIAL_KILLER }
+        if (aliveSerialKillers > 0) {
+            if (alivePlayers.size == aliveSerialKillers) return GameOutcome.SerialKillerWin
+            return null
+        }
 
         val aliveWerewolves = alivePlayers.count { it.role == WerwolfRoles.WERWOLF }
         val aliveVillagers = alivePlayers.count { it.role != WerwolfRoles.WERWOLF }

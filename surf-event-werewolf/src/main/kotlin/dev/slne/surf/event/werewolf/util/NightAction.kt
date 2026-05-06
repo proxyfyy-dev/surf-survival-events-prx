@@ -1,6 +1,6 @@
 package dev.slne.surf.event.werewolf.util
 
-import java.util.UUID
+import java.util.*
 
 sealed class NightAction {
     abstract val actor: UUID
@@ -11,6 +11,6 @@ sealed class NightAction {
     data class WitchHeal(override val actor: UUID, val target: UUID) : NightAction()
     data class WitchPoison(override val actor: UUID, val target: UUID) : NightAction()
     data class AmorLink(override val actor: UUID, val first: UUID, val second: UUID) : NightAction()
-    data class PriestWater(override val actor: UUID, val target: UUID) : NightAction()
+    data class GirlPeek(override val actor: UUID, val outcome: GirlPeekOutcome) : NightAction()
     data class SerialKillerKill(override val actor: UUID, val target: UUID) : NightAction()
 }

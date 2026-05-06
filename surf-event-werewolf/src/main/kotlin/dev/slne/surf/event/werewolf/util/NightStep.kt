@@ -5,8 +5,10 @@ enum class NightStep(
 ) {
     AMOR(WerwolfRoles.AMOR),
     WEREWOLVES(WerwolfRoles.WERWOLF),
+    GIRL(WerwolfRoles.GIRL),
     SEER(WerwolfRoles.SEER),
     DOCTOR(WerwolfRoles.DOCTOR),
     WITCH(WerwolfRoles.WITCH),
+    SERIAL_KILLER(WerwolfRoles.SERIAL_KILLER),
     RESOLVE(null),
 }
