@@ -16,3 +16,4 @@ plugins {
 include("surf-survival-events-base")
 include("surf-survival-events-events:surf-survival-event-example")
 include("surf-survival-events-events:surf-survival-event-werewolf")
+include("surf-survival-events-events:surf-survival-event-red-light-green-light")

@@ -8,12 +8,10 @@ import java.util.*
 import kotlin.random.Random
 
 object GirlActions {
-
     fun isValid(
         action: NightAction.GirlPeek,
         players: Map<UUID, WerewolfPlayer>,
-    ): Boolean {
-        return when (val outcome = action.outcome) {
+    ): Boolean = when (val outcome = action.outcome) {
             GirlPeekOutcome.TooDark,
             GirlPeekOutcome.CaughtByWerewolves -> true
 
@@ -22,7 +20,6 @@ object GirlActions {
                 target?.isAlive == true && target.role == WerwolfRoles.WERWOLF
             }
         }
-    }
 
     fun rollOutcome(players: Map<UUID, WerewolfPlayer>): GirlPeekOutcome {
         val aliveWerewolves = players.values
@@ -39,10 +36,8 @@ object GirlActions {
         }
     }
 
-    fun resolveCaughtGirls(actions: List<NightAction>): List<UUID> {
-        return actions
+    fun resolveCaughtGirls(actions: List<NightAction>): List<UUID> = actions
             .filterIsInstance<NightAction.GirlPeek>()
             .filter { it.outcome == GirlPeekOutcome.CaughtByWerewolves }
             .map { it.actor }
-    }
 }

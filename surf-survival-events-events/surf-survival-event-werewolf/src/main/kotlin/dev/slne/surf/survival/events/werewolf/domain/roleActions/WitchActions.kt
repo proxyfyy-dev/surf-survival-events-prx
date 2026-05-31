@@ -5,47 +5,40 @@ import dev.slne.surf.survival.events.werewolf.util.WerewolfPlayer
 import java.util.*
 
 object WitchActions {
-
     fun isValid(
         action: NightAction,
         players: Map<UUID, WerewolfPlayer>,
         werewolfTarget: UUID?,
         dayNumber: Int,
-    ): Boolean {
-        return when (action) {
-            is NightAction.WitchHeal -> {
-                val witch = players[action.actor] ?: return false
-                witch.hasWitchHealPotion &&
-                        players[action.target]?.isAlive == true &&
-                        werewolfTarget != null &&
-                        action.target == werewolfTarget
-            }
-
-            is NightAction.WitchPoison -> {
-                val witch = players[action.actor] ?: return false
-                witch.hasWitchPoisonPotion &&
-                        dayNumber > 1 &&
-                        players[action.target]?.isAlive == true &&
-                        action.actor != action.target
-            }
-
-            else -> false
+    ): Boolean = when (action) {
+        is NightAction.WitchHeal -> {
+            val witch = players[action.actor] ?: return false
+            witch.hasWitchHealPotion &&
+                    players[action.target]?.isAlive == true &&
+                    werewolfTarget != null &&
+                    action.target == werewolfTarget
         }
+
+        is NightAction.WitchPoison -> {
+            val witch = players[action.actor] ?: return false
+            witch.hasWitchPoisonPotion &&
+                    dayNumber > 1 &&
+                    players[action.target]?.isAlive == true &&
+                    action.actor != action.target
+        }
+
+        else -> false
     }
 
-    fun resolveHealTarget(actions: List<NightAction>): UUID? {
-        return actions
-            .filterIsInstance<NightAction.WitchHeal>()
-            .lastOrNull()
-            ?.target
-    }
+    fun resolveHealTarget(actions: List<NightAction>) = actions
+        .filterIsInstance<NightAction.WitchHeal>()
+        .lastOrNull()
+        ?.target
 
-    fun resolvePoisonTarget(actions: List<NightAction>): UUID? {
-        return actions
-            .filterIsInstance<NightAction.WitchPoison>()
-            .lastOrNull()
-            ?.target
-    }
+    fun resolvePoisonTarget(actions: List<NightAction>) = actions
+        .filterIsInstance<NightAction.WitchPoison>()
+        .lastOrNull()
+        ?.target
 
     fun apply(
         players: Map<UUID, WerewolfPlayer>,

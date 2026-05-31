@@ -7,6 +7,7 @@ plugins {
 dependencies {
     compileOnly(project(":surf-survival-events-events:surf-survival-event-example"))
     compileOnly(project(":surf-survival-events-events:surf-survival-event-werewolf"))
+    compileOnly(project(":surf-survival-events-events:surf-survival-event-red-light-green-light"))
 }
 
 surfPaperPluginApi {
@@ -21,5 +22,6 @@ surfPaperPluginApi {
         registerSoft("surf-survival-event-example")
         registerSoft("surf-survival-event-werewolf")
         registerSoft("surf-survival-event-race")
+        registerSoft("surf-survival-event-red-light-green-light")
     }
 }

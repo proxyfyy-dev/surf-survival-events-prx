@@ -97,14 +97,12 @@ class WerewolfGameEngine(
         }
     }
 
-    fun advancePhase(): PhaseAdvanceResult {
-        return when (roundState.phase) {
+    fun advancePhase(): PhaseAdvanceResult = when (roundState.phase) {
             GameState.MAYOR_VOTE -> advanceMayorVotePhase()
             GameState.DAY -> advanceDayPhase()
             GameState.VOTE -> advanceVotePhase()
             GameState.NIGHT -> advanceNightPhase()
         }
-    }
 
     private fun advanceMayorVotePhase(): PhaseAdvanceResult {
         val standings = calculateMayorVoteStandings()
@@ -178,9 +176,8 @@ class WerewolfGameEngine(
         )
     }
 
-    private fun isFirstDayWithoutMayor(): Boolean {
-        return roundState.dayNumber == 1 && roundState.mayorPlayer == null
-    }
+    private fun isFirstDayWithoutMayor(): Boolean =
+        roundState.dayNumber == 1 && roundState.mayorPlayer == null
 
     fun beginMayorVoting() {
         roundState = roundState.copy(
@@ -236,28 +233,24 @@ class WerewolfGameEngine(
         service.setGameState(GameState.DAY)
     }
 
-    fun submitMayorVote(voter: UUID, target: UUID): Boolean {
-        return submitVote(
-            expectedPhase = GameState.MAYOR_VOTE,
-            votes = roundState.mayorVotes,
-            voter = voter,
-            target = target
-        )
-    }
+    fun submitMayorVote(voter: UUID, target: UUID): Boolean = submitVote(
+        expectedPhase = GameState.MAYOR_VOTE,
+        votes = roundState.mayorVotes,
+        voter = voter,
+        target = target
+    )
 
     fun resolveMayorVote(): UUID? {
         if (roundState.phase != GameState.MAYOR_VOTE) return null
         return calculateMayorVoteStandings().firstOrNull()?.target
     }
 
-    fun submitVote(voter: UUID, target: UUID): Boolean {
-        return submitVote(
-            expectedPhase = GameState.VOTE,
-            votes = roundState.votes,
-            voter = voter,
-            target = target
-        )
-    }
+    fun submitVote(voter: UUID, target: UUID): Boolean = submitVote(
+        expectedPhase = GameState.VOTE,
+        votes = roundState.votes,
+        voter = voter,
+        target = target
+    )
 
     fun resolveVote(): UUID? {
         if (roundState.phase != GameState.VOTE) return null
@@ -546,10 +539,9 @@ class WerewolfGameEngine(
         }
     }
 
-    private fun isSameNightActionSlot(existingAction: NightAction, newAction: NightAction): Boolean {
-        return existingAction.actor == newAction.actor &&
+    private fun isSameNightActionSlot(existingAction: NightAction, newAction: NightAction): Boolean =
+        existingAction.actor == newAction.actor &&
                 existingAction::class == newAction::class
-    }
 
     fun skipCurrentNightStep(): Boolean {
         if (roundState.phase != GameState.NIGHT) return false

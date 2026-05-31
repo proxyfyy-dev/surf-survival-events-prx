@@ -19,7 +19,6 @@ import dev.slne.surf.survival.events.werewolf.commands.subcommands.voteWerewolfC
 import dev.slne.surf.survival.events.werewolf.commands.subcommands.witchWerewolfCommand
 
 fun werewolfCommand() = commandAPICommand("werewolf"){
-
     subcommand(openGameWerewolfCommand())
     subcommand(startWerewolfCommand())
     subcommand(stopWerewolfCommand())
@@ -34,8 +33,4 @@ fun werewolfCommand() = commandAPICommand("werewolf"){
     subcommand(serialKillerWerewolfCommand())
     subcommand(witchWerewolfCommand())
     subcommand(debugWerewolfCommand())
-
-    playerExecutor { player, arguments ->
-
-    }
 }

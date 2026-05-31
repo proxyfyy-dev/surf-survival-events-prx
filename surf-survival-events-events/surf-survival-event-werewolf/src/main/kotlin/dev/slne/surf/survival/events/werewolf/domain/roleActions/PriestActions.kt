@@ -10,28 +10,24 @@ data class PriestResolution(
 )
 
 object PriestActions {
-
-    fun isValid(actor: WerewolfPlayer, target: WerewolfPlayer): Boolean {
-        return actor.isAlive &&
+    fun isValid(actor: WerewolfPlayer, target: WerewolfPlayer): Boolean =
+        actor.isAlive &&
                 target.isAlive &&
                 actor.uuid != target.uuid
-    }
 
     fun resolve(
         actor: UUID,
         target: UUID,
         players: Map<UUID, WerewolfPlayer>
-    ): PriestResolution {
-        return if (players[target]?.role == WerwolfRoles.WERWOLF) {
-            PriestResolution(
-                hitWerewolf = true,
-                eliminatedPlayers = listOf(target)
-            )
-        } else {
-            PriestResolution(
-                hitWerewolf = false,
-                eliminatedPlayers = listOf(actor)
-            )
-        }
+    ): PriestResolution = if (players[target]?.role == WerwolfRoles.WERWOLF) {
+        PriestResolution(
+            hitWerewolf = true,
+            eliminatedPlayers = listOf(target)
+        )
+    } else {
+        PriestResolution(
+            hitWerewolf = false,
+            eliminatedPlayers = listOf(actor)
+        )
     }
 }

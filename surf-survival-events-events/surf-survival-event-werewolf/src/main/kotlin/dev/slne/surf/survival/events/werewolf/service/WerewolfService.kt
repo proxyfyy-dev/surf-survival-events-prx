@@ -757,9 +757,7 @@ class WerewolfService(val gameId: String) {
 
     fun refreshCommandRequirements() = WerewolfCommandRequirements.update(allParticipants)
 
-    fun getPlayerRole(uuid: UUID): WerwolfRoles? {
-        return players[uuid]?.role
-    }
+    fun getPlayerRole(uuid: UUID): WerwolfRoles? = players[uuid]?.role
 
     fun setGameState(gameState: GameState) {
         _state = gameState

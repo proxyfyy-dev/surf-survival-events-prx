@@ -13,6 +13,8 @@ surfPaperPluginApi {
     generateLibraryLoader(false)
     foliaSupported(true)
 
+    authors.add("ProxyFyy")
+
     serverDependencies {
         registerSoft("voicechat")
     }
