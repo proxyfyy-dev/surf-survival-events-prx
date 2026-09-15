@@ -8,9 +8,9 @@ object PermissionRegistry : PermissionRegistry() {
     private const val COMMAND_PREFIX = "$PREFIX.command"
 
     val COMMAND_WEREWOLF_USE = create("$COMMAND_PREFIX.use")
-    val COMMAND_WEREWOLF_ADMIN = create("$COMMAND_PREFIX.admin")
+    val COMMAND_WEREWOLF_COMMUNITY_MANAGER = create("$COMMAND_PREFIX.community_manager")
 
     init {
-        pluginManager.getPermission(COMMAND_WEREWOLF_USE)?.addParent(COMMAND_WEREWOLF_ADMIN, true)
+        pluginManager.getPermission(COMMAND_WEREWOLF_USE)?.addParent(COMMAND_WEREWOLF_COMMUNITY_MANAGER, true)
     }
 }

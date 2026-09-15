@@ -86,10 +86,10 @@ class WerewolfGame : GameHandler {
     private fun resolveLeaderUuid(context: GameContext): UUID? {
         val participantIds = context.allEventPlayers.toHashSet()
         return Bukkit.getOnlinePlayers()
-            .firstOrNull { it.hasPermission(PermissionRegistry.COMMAND_WEREWOLF_ADMIN) && it.uniqueId !in participantIds }
+            .firstOrNull { it.hasPermission(PermissionRegistry.COMMAND_WEREWOLF_COMMUNITY_MANAGER) && it.uniqueId !in participantIds }
             ?.uniqueId
             ?: Bukkit.getOnlinePlayers()
-                .firstOrNull { it.hasPermission(PermissionRegistry.COMMAND_WEREWOLF_ADMIN) }
+                .firstOrNull { it.hasPermission(PermissionRegistry.COMMAND_WEREWOLF_COMMUNITY_MANAGER) }
                 ?.uniqueId
     }
 }

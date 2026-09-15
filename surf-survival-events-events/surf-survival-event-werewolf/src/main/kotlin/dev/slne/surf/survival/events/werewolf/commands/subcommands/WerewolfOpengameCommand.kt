@@ -20,7 +20,7 @@ private fun createClickable(gameId: String) = buildText {
 
 
 fun openGameWerewolfCommand() = subcommand("openGame") {
-    withPermission(PermissionRegistry.COMMAND_WEREWOLF_ADMIN)
+    withPermission(PermissionRegistry.COMMAND_WEREWOLF_COMMUNITY_MANAGER)
     stringArgument("gameId")
     playerExecutor { player, arguments ->
         val gameId: String by arguments
