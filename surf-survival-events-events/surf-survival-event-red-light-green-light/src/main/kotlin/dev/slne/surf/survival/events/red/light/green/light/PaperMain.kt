@@ -21,8 +21,6 @@ class PaperMain : SuspendingJavaPlugin() {
     }
 
     override suspend fun onEnableAsync() {
-        plugin.logger.info("Enabling surf-survival-event-red-light-green-light plugin...")
-
         rlglCommand()
         AreaSelectionListener.register()
         RlglMovementListener.register()
@@ -32,8 +30,6 @@ class PaperMain : SuspendingJavaPlugin() {
     }
 
     override suspend fun onDisableAsync() {
-        plugin.logger.info("Disabling surf-survival-event-red-light-green-light plugin...")
-
         if (GameService.isActiveGame(RedLightGreenLightGame.KEY)) {
             GameService.stopGameAndWait(GameStopReason.PLUGIN_DISABLE)
         }

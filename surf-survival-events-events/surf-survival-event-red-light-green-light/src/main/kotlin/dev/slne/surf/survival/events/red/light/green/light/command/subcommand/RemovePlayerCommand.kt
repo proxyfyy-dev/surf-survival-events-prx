@@ -28,26 +28,18 @@ fun CommandAPICommand.removePlayerCommand() = subcommand("removePlayer") {
             return@playerExecutor
         }
 
-        val target: Player? by arguments
+        val target: Player by arguments
         val id: String? by arguments
 
-        val resolvedTarget = target ?: run {
-            player.sendText {
-                appendErrorPrefix()
-                error("Spieler nicht gefunden oder nicht online.")
-            }
-            return@playerExecutor
-        }
-
         val result = GameService.withGameContext(RedLightGreenLightGame.KEY) {
-            RlglService.removePlayer(player, resolvedTarget, id)
+            RlglService.removePlayer(player, target, id)
         }
 
         when (result) {
             RemovePlayerResult.REMOVED -> {
                 player.sendText {
                     appendSuccessPrefix()
-                    variableValue(resolvedTarget.name)
+                    variableValue(target.name)
                     appendSpace()
                     success("wurde aus der Runde entfernt.")
                 }
@@ -56,7 +48,7 @@ fun CommandAPICommand.removePlayerCommand() = subcommand("removePlayer") {
             RemovePlayerResult.NOT_IN_ROUND -> {
                 player.sendText {
                     appendErrorPrefix()
-                    variableValue(resolvedTarget.name)
+                    variableValue(target.name)
                     appendSpace()
                     error("ist nicht in der Runde.")
                 }

@@ -28,27 +28,19 @@ fun CommandAPICommand.addPlayerCommand() = subcommand("addPlayer") {
             return@playerExecutor
         }
 
-        val target: Player? by arguments
+        val target: Player by arguments
         val id: String? by arguments
 
-        val resolvedTarget = target ?: run {
-            player.sendText {
-                appendErrorPrefix()
-                error("Spieler nicht gefunden oder nicht online.")
-            }
-            return@playerExecutor
-        }
-
-        when (RlglService.joinRound(resolvedTarget, id)) {
+        when (RlglService.joinRound(target, id)) {
             JoinRoundResult.JOINED -> {
                 player.sendText {
                     appendSuccessPrefix()
-                    variableValue(resolvedTarget.name)
+                    variableValue(target.name)
                     appendSpace()
                     success("wurde zur Runde hinzugefügt.")
                 }
 
-                resolvedTarget.sendText {
+                target.sendText {
                     appendSuccessPrefix()
                     success("Du wurdest von")
                     appendSpace()
@@ -61,7 +53,7 @@ fun CommandAPICommand.addPlayerCommand() = subcommand("addPlayer") {
             JoinRoundResult.ALREADY_JOINED -> {
                 player.sendText {
                     appendErrorPrefix()
-                    variableValue(resolvedTarget.name)
+                    variableValue(target.name)
                     appendSpace()
                     error("ist der Runde bereits beigetreten.")
                 }

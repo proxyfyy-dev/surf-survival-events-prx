@@ -5,7 +5,6 @@ import org.bukkit.Sound
 import org.bukkit.entity.Player
 
 object AreaSelectionSounds {
-
     fun playActivated(player: Player) = player.playSound(true) {
         type(Sound.BLOCK_NOTE_BLOCK_PLING)
         volume(1f)

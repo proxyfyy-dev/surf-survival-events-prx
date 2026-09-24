@@ -1,8 +1,9 @@
 package dev.slne.surf.survival.events.red.light.green.light.command.util
 
-import com.github.shynixn.mccoroutine.folia.entityDispatcher
 import com.github.shynixn.mccoroutine.folia.launch
+import com.github.shynixn.mccoroutine.folia.scope
 import dev.slne.surf.api.core.messages.adventure.buildText
+import dev.slne.surf.api.core.util.runAtFixedRate
 import dev.slne.surf.survival.events.red.light.green.light.plugin
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -15,14 +16,13 @@ object AreaSelectionActionBar {
     private val jobs = ConcurrentHashMap<UUID, Job>()
 
     fun start(player: Player, target: AreaTarget) {
-        jobs.put(player.uniqueId, plugin.launch(plugin.entityDispatcher(player)) {
-            while (true) {
+        jobs.put(player.uniqueId, plugin.launch {
+            plugin.scope.runAtFixedRate(1.seconds) {
                 player.sendActionBar(
                     buildText {
                         success("${target.displayName}-Area-Set-Modus aktiv")
                     }
                 )
-                delay(1.seconds)
             }
         })?.cancel()
     }
