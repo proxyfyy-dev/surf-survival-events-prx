@@ -51,6 +51,10 @@ data class RlglConfig(
 
         @param:Comment("Umkreis in Blöcken um den Community-Manager, in dem Spieler beim Öffnen einer Runde eingeladen werden.")
         @PositiveNumber
-        var inviteRadius: Double = 20.0
+        var inviteRadius: Double = 20.0,
+
+        @param:Comment("Countdown in Sekunden nach /rlgl start, bevor die erste Grün-Phase beginnt.")
+        @PositiveNumber
+        var startCountdownSeconds: Int = 3
     )
 }

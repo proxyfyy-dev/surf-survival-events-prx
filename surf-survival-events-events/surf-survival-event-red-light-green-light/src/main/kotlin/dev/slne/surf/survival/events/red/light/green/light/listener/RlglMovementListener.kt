@@ -18,6 +18,11 @@ object RlglMovementListener : Listener {
         if (!GameService.isActiveGame(RedLightGreenLightGame.KEY)) return
 
         GameService.withGameContext(RedLightGreenLightGame.KEY) {
+            if (RlglService.shouldCancelCountdownMovement(event.player, to)) {
+                event.isCancelled = true
+                return@withGameContext
+            }
+
             RlglService.handleMovement(event.player)
         }
     }

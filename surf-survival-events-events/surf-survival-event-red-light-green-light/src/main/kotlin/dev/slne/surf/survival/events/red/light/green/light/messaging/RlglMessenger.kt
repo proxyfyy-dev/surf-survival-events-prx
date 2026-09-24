@@ -53,6 +53,19 @@ object RlglMessenger {
         }
     }
 
+    fun notifyOpenerOfLeave(opener: Player, left: Player, roundSize: Int) {
+        opener.sendText {
+            appendErrorPrefix()
+            variableValue(left.name)
+            appendSpace()
+            error("hat die Runde verlassen.")
+            appendSpace()
+            spacer("(")
+            variableValue(roundSize.toString())
+            spacer(" Spieler)")
+        }
+    }
+
     fun notifyRemovedFromOpenRound(target: Player, remover: Player) {
         target.sendText {
             appendErrorPrefix()
@@ -117,6 +130,74 @@ object RlglMessenger {
         }
     }
 
+    fun broadcastCountdown(recipients: Collection<Player>, secondsRemaining: Int) {
+        recipients.forEach { player ->
+            player.showTitle {
+                title { text(secondsRemaining.toString(), NamedTextColor.GOLD) }
+                times {
+                    fadeIn(0)
+                    stay(20)
+                    fadeOut(0)
+                }
+            }
+
+            player.playSound(true) {
+                type(Sound.BLOCK_NOTE_BLOCK_HAT)
+                volume(0.6f)
+                pitch(1f)
+            }
+        }
+    }
+
+    fun broadcastCountdownGo(recipients: Collection<Player>) {
+        recipients.forEach { player ->
+            player.showTitle {
+                title { text("LOS!", NamedTextColor.GREEN) }
+                times {
+                    fadeIn(0)
+                    stay(20)
+                    fadeOut(0)
+                }
+            }
+
+            player.playSound(true) {
+                type(Sound.ENTITY_PLAYER_LEVELUP)
+                volume(0.7f)
+                pitch(1f)
+            }
+        }
+    }
+
+    fun broadcastMilestone(recipients: Collection<Player>, aliveCount: Int) {
+        recipients.forEach { player ->
+            player.showTitle {
+                title { text("NUR NOCH $aliveCount", NamedTextColor.GOLD) }
+                times {
+                    fadeIn(5)
+                    stay(40)
+                    fadeOut(10)
+                }
+            }
+
+            player.playSound(true) {
+                type(Sound.BLOCK_BELL_USE)
+                volume(0.7f)
+                pitch(1f)
+            }
+        }
+
+        recipients.forEach { viewer ->
+            viewer.sendText {
+                appendInfoPrefix()
+                info("Nur noch")
+                appendSpace()
+                variableValue(aliveCount.toString())
+                appendSpace()
+                info("Spieler übrig!")
+            }
+        }
+    }
+
     fun broadcastPhase(recipients: Collection<Player>, state: RlglState) {
         recipients.forEach { player ->
             player.showTitle {
@@ -135,8 +216,8 @@ object RlglMessenger {
             }
 
             player.playSound(true) {
-                type(if (state == RlglState.GREEN) Sound.BLOCK_NOTE_BLOCK_PLING else Sound.ENTITY_WITHER_SPAWN)
-                volume(1f)
+                type(if (state == RlglState.GREEN) Sound.BLOCK_NOTE_BLOCK_PLING else Sound.BLOCK_NOTE_BLOCK_BASS)
+                volume(0.7f)
                 pitch(if (state == RlglState.GREEN) 1.5f else 0.6f)
             }
         }

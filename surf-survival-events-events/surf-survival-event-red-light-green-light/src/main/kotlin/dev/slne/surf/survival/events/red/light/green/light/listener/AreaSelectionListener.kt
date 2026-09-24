@@ -16,6 +16,7 @@ import org.bukkit.event.player.PlayerKickEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.util.BoundingBox
 import java.util.UUID
+import kotlin.math.abs
 
 object AreaSelectionListener : Listener {
 
@@ -59,6 +60,9 @@ object AreaSelectionListener : Listener {
 
         AreaSelectionSounds.playAreaSaved(player)
 
+        val widthX = abs(pos2.x - pos1.x).toInt() + 1
+        val widthZ = abs(pos2.z - pos1.z).toInt() + 1
+
         player.sendText {
             appendSuccessPrefix()
             success("${target.displayName}-Area zwischen")
@@ -70,6 +74,12 @@ object AreaSelectionListener : Listener {
             variableValue(pos2.readableString(true))
             appendSpace()
             success("gespeichert (volle Welthöhe).")
+            appendNewline()
+            info("Fläche:")
+            appendSpace()
+            variableValue("${widthX}x$widthZ")
+            appendSpace()
+            info("Blöcke")
         }
     }
 
